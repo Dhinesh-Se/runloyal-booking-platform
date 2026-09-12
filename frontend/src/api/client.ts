@@ -4,7 +4,7 @@ import type { ApiError } from './types'
 let getAccessTokenFn: (() => Promise<string | null>) | null = null
 
 /**
- * Register the Auth0 token getter. Called once from the auth provider.
+ * Register the Okta access-token getter. Called once from the auth provider.
  */
 export function registerTokenGetter(fn: () => Promise<string | null>) {
   getAccessTokenFn = fn
@@ -74,8 +74,8 @@ export function extractErrorMessage(error: unknown): string {
 export function extractFieldErrors(error: unknown): Record<string, string> {
   if (error && typeof error === 'object') {
     const err = error as { response?: { status?: number; data?: ApiError } }
-    if (err.response?.status === 400 && err.response.data?.errors) {
-      return err.response.data.errors
+    if (err.response?.status === 400) {
+      return err.response.data?.validationErrors ?? err.response.data?.errors ?? {}
     }
   }
   return {}

@@ -9,11 +9,12 @@ import { StaffPage } from '@/features/staff/StaffPage'
 import { StaffDetail } from '@/features/staff/StaffDetail'
 import { AvailabilityPage } from '@/features/availability/AvailabilityPage'
 import { BookingsPage } from '@/features/bookings/BookingsPage'
+import { DashboardPage } from '@/features/dashboard/DashboardPage'
 
 export function Router() {
   return (
     <Routes>
-      {/* Auth0 callback */}
+      {/* Okta authorization-code callback */}
       <Route path="/login/callback" element={<LoginCallback />} />
 
       {/* Protected app shell */}
@@ -25,7 +26,8 @@ export function Router() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Navigate to="/calendar" replace />} />
+        <Route index element={<DashboardPage />} />
+        <Route path="dashboard" element={<DashboardPage />} />
         <Route path="calendar" element={<CalendarPage />} />
         <Route path="services" element={<ServicesPage />} />
         <Route path="services/:id" element={<ServiceDetail />} />
@@ -33,7 +35,7 @@ export function Router() {
         <Route path="staff/:id" element={<StaffDetail />} />
         <Route path="availability" element={<AvailabilityPage />} />
         <Route path="bookings" element={<BookingsPage />} />
-        <Route path="*" element={<Navigate to="/calendar" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
   )

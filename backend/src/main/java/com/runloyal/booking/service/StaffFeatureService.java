@@ -8,7 +8,7 @@ import com.runloyal.booking.repo.ServiceRepository;
 import com.runloyal.booking.repo.StaffRepository;
 import com.runloyal.booking.security.TenantContext;
 import com.runloyal.booking.web.dto.request.*;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.UUID;
@@ -37,6 +37,15 @@ public class StaffFeatureService {
 
     public List<Staff> list() {
         return staffs.findByTenantId(context.tenantId());
+    }
+
+    /** Returns the actual persisted assignments; callers must never infer them from availability. */
+    public List<Staff> assignedTo(UUID serviceId) {
+        var tenant = context.tenantId();
+        services.findByIdAndTenantId(serviceId, tenant).orElseThrow(this::notFound);
+        return assignments.findByTenantIdAndServiceId(tenant, serviceId).stream()
+                .map(assignment -> staffs.findByIdAndTenantId(assignment.staffId, tenant).orElseThrow(this::notFound))
+                .toList();
     }
 
     @Transactional
@@ -94,6 +103,8 @@ public class StaffFeatureService {
                                 && command.endTime().isAfter(value.startTime)))
             throw new IllegalStateException("Overlapping availability window");
         StaffAvailability value = id == null ? new StaffAvailability() : availabilityById(id);
+        if (id != null && !value.staffId.equals(staffId))
+            throw notFound();
         value.tenantId = context.tenantId();
         value.staffId = staffId;
         value.dayOfWeek = command.dayOfWeek();

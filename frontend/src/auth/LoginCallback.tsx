@@ -1,12 +1,12 @@
-import { useAuth0 } from '@auth0/auth0-react'
+import { useAuth } from './useAuth'
 
 export function LoginCallback() {
-  const { isLoading, error } = useAuth0()
+  const { isLoading } = useAuth()
 
   return (
     <div className="auth-loading">
       {isLoading && <div className="auth-loading__spinner" />}
-      <span>{error ? `Login failed: ${error.message}` : 'Completing sign in…'}</span>
+      <span>{isLoading ? 'Completing sign in…' : 'Returning to the portal…'}</span>
     </div>
   )
 }

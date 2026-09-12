@@ -1,2 +1,2 @@
 # AI usage
-This implementation was authored with AI assistance and reviewed for tenant scoping, validation, and transactional booking behavior. No credentials or production data were used.
+This implementation was authored with AI assistance and reviewed by a human for tenant scoping, validation, transactional booking behavior, and frontend accessibility. AI-assisted tasks included adding regression coverage, replacing an incorrect provider-specific browser-auth integration with a standards-based Okta PKCE flow, and tightening persisted assignment display. No credentials or production data were used. Final validation includes the project test/build commands documented in the repository; external Okta login requires evaluator-provided Okta SPA credentials.

@@ -9,8 +9,8 @@ export function TopBar() {
   const [menuOpen, setMenuOpen] = useState(false)
 
   const displayName = user.name || user.email || 'User'
-  const tenantShort = me?.tenantId
-    ? `Tenant ${me.tenantId.substring(0, 8)}…`
+  const tenantShort = me?.tenantName
+    ? me.tenantName
     : 'Loading…'
 
   return (

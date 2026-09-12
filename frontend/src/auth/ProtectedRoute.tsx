@@ -1,14 +1,14 @@
-import { useAuth0 } from '@auth0/auth0-react'
 import { useEffect } from 'react'
+import { useAuth } from './useAuth'
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isLoading, isAuthenticated, loginWithRedirect } = useAuth0()
+  const { isLoading, isAuthenticated, login } = useAuth()
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
-      void loginWithRedirect({ appState: { returnTo: window.location.pathname } })
+      login()
     }
-  }, [isLoading, isAuthenticated, loginWithRedirect])
+  }, [isLoading, isAuthenticated, login])
 
   if (isLoading) {
     // Auth state not yet resolved — show full-page loader

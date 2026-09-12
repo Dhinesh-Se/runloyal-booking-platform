@@ -1,7 +1,8 @@
 import { NavLink } from 'react-router-dom'
-import { Calendar, Briefcase, Users, Clock, BookOpen } from 'lucide-react'
+import { Calendar, Briefcase, Users, Clock, BookOpen, LayoutDashboard } from 'lucide-react'
 
 const NAV_ITEMS = [
+  { to: '/', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/calendar', label: 'Calendar', icon: Calendar },
   { to: '/services', label: 'Services', icon: Briefcase },
   { to: '/staff', label: 'Staff', icon: Users },
