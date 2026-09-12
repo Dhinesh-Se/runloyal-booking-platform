@@ -1,0 +1,7 @@
+spring:
+ datasource: {url: ${DB_URL:jdbc:mysql://localhost:3306/runloyal}, username: ${DB_USER:runloyal}, password: ${DB_PASSWORD:runloyal}}
+ jpa: {open-in-view: false, hibernate: {ddl-auto: validate}}
+ flyway: {enabled: true}
+ security: {oauth2: {resourceserver: {jwt: {issuer-uri: ${OKTA_ISSUER_URI:http://localhost:8081/realms/demo}}}}}
+springdoc: {swagger-ui: {path: /swagger-ui.html}}
+server: {error: {include-message: never}}
