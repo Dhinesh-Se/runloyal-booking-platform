@@ -1,5 +1,5 @@
 import { BrowserRouter } from 'react-router-dom'
-import { OktaProvider } from '@/auth/OktaProvider'
+import { AuthProvider } from '@/auth/AuthProvider'
 import { QueryProvider } from './QueryProvider'
 import { Router } from './Router'
 import { Toaster } from 'react-hot-toast'
@@ -7,7 +7,7 @@ import { Toaster } from 'react-hot-toast'
 export function App() {
   return (
     <BrowserRouter>
-      <OktaProvider>
+      <AuthProvider>
         <QueryProvider>
           <Router />
           <Toaster
@@ -29,7 +29,7 @@ export function App() {
             }}
           />
         </QueryProvider>
-      </OktaProvider>
+      </AuthProvider>
     </BrowserRouter>
   )
 }

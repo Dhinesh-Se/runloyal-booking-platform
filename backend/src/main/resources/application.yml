@@ -14,8 +14,8 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: ${OKTA_ISSUER_URI:https://example.okta.com/oauth2/default}
-          audience: ${OKTA_AUDIENCE:api://default}
+          issuer-uri: ${AUTH0_ISSUER_URI:https://example.okta.com/oauth2/default}
+          audience: ${AUTH0_AUDIENCE:api://default}
 
 springdoc:
   swagger-ui:

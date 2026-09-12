@@ -1,5 +1,7 @@
 import { useAuth0 } from '@auth0/auth0-react'
 
+import { AUTH0_LOGOUT_URI } from './AuthProvider'
+
 export interface AuthUser {
   name?: string
   email?: string
@@ -16,7 +18,7 @@ export function useAuth() {
   }
 
   const logout = async () => {
-    await auth0Logout({ logoutParams: { returnTo: window.location.origin } })
+    await auth0Logout({ logoutParams: { returnTo: AUTH0_LOGOUT_URI } })
   }
 
   const login = () => {

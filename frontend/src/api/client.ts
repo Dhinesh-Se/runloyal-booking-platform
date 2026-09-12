@@ -4,7 +4,7 @@ import type { ApiError } from './types'
 let getAccessTokenFn: (() => Promise<string | null>) | null = null
 
 /**
- * Register the Okta access-token getter. Called once from the auth provider.
+ * Register the Auth0 access-token getter. Called once from the auth provider.
  */
 export function registerTokenGetter(fn: () => Promise<string | null>) {
   getAccessTokenFn = fn

@@ -1,18 +1,12 @@
-import { LoginCallback as OktaLoginCallback } from '@okta/okta-react'
-
-const loadingElement = (
-  <div className="auth-loading">
-    <div className="auth-loading__spinner" />
-    <span>Completing sign in…</span>
-  </div>
-)
-
-const errorElement = (
-  <div className="auth-loading">
-    <span>Sign-in failed. Please close this tab and try again.</span>
-  </div>
-)
+import { useAuth0 } from '@auth0/auth0-react'
 
 export function LoginCallback() {
-  return <OktaLoginCallback loadingElement={loadingElement} errorComponent={() => errorElement} />
+  const { isLoading, error } = useAuth0()
+
+  return (
+    <div className="auth-loading">
+      {isLoading && <div className="auth-loading__spinner" />}
+      <span>{error ? `Login failed: ${error.message}` : 'Completing sign in…'}</span>
+    </div>
+  )
 }

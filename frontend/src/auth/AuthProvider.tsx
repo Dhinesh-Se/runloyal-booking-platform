@@ -6,6 +6,10 @@ import { registerTokenGetter } from '@/api/client'
 const AUTH0_DOMAIN = import.meta.env.VITE_AUTH0_DOMAIN as string
 const AUTH0_CLIENT_ID = import.meta.env.VITE_AUTH0_CLIENT_ID as string
 const AUTH0_AUDIENCE = import.meta.env.VITE_AUTH0_AUDIENCE as string
+const AUTH0_REDIRECT_URI =
+  (import.meta.env.VITE_AUTH0_REDIRECT_URI as string) || `${window.location.origin}/`
+const AUTH0_LOGOUT_URI =
+  (import.meta.env.VITE_AUTH0_LOGOUT_URI as string) || `${window.location.origin}/`
 
 if (!AUTH0_DOMAIN || !AUTH0_CLIENT_ID || !AUTH0_AUDIENCE) {
   console.error(
@@ -14,7 +18,7 @@ if (!AUTH0_DOMAIN || !AUTH0_CLIENT_ID || !AUTH0_AUDIENCE) {
   )
 }
 
-function TokenBridge({ children }: { children: React.ReactNode }) {
+function TokenBridge({ children }: Readonly<{ children: React.ReactNode }>) {
   const { getAccessTokenSilently } = useAuth0()
 
   useEffect(() => {
@@ -36,7 +40,7 @@ interface AuthProviderProps {
   children: React.ReactNode
 }
 
-export function OktaProvider({ children }: AuthProviderProps) {
+export function AuthProvider({ children }: Readonly<AuthProviderProps>) {
   const navigate = useNavigate()
 
   return (
@@ -45,7 +49,7 @@ export function OktaProvider({ children }: AuthProviderProps) {
       clientId={AUTH0_CLIENT_ID}
       cacheLocation="localstorage"
       authorizationParams={{
-        redirect_uri: window.location.origin,
+        redirect_uri: AUTH0_REDIRECT_URI,
         audience: AUTH0_AUDIENCE,
         scope: 'openid profile email',
       }}
@@ -57,3 +61,5 @@ export function OktaProvider({ children }: AuthProviderProps) {
     </Auth0Provider>
   )
 }
+
+export { AUTH0_LOGOUT_URI }
