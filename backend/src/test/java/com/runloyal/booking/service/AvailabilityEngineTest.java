@@ -1,7 +1,102 @@
 package com.runloyal.booking.service;
-import com.runloyal.booking.domain.*; import org.junit.jupiter.api.*; import java.time.*; import java.util.*; import static org.junit.jupiter.api.Assertions.*;
-class AvailabilityEngineTest { final AvailabilityEngine engine=new AvailabilityEngine(); final ZoneId zone=ZoneId.of("Asia/Kolkata"); Staff staff(){var s=new Staff();s.status=Model.Status.ACTIVE;return s;} ServiceOffering service(){var s=new ServiceOffering();s.status=Model.Status.ACTIVE;s.durationMinutes=60;return s;} StaffAvailability rule(Model.AvailabilityType t,LocalTime a,LocalTime b){var r=new StaffAvailability();r.dayOfWeek=DayOfWeek.MONDAY;r.type=t;r.startTime=a;r.endTime=b;return r;} Instant at(int hour,int min){return ZonedDateTime.of(2026,1,5,hour,min,0,0,zone).toInstant();}
- @Test void acceptsWorkingSlotAndTouchingBooking(){var b=new Booking();b.status=Model.BookingStatus.CONFIRMED;b.startAt=at(9,0);b.endAt=at(10,0);assertTrue(engine.eligible(staff(),service(),true,List.of(rule(Model.AvailabilityType.WORKING,LocalTime.of(9,0),LocalTime.of(17,0))),List.of(b),at(10,0),zone));}
- @Test void rejectsBreakAndHoursAndInactive(){var rules=List.of(rule(Model.AvailabilityType.WORKING,LocalTime.of(9,0),LocalTime.of(17,0)),rule(Model.AvailabilityType.BREAK,LocalTime.of(12,0),LocalTime.of(13,0)));assertFalse(engine.eligible(staff(),service(),true,rules,List.of(),at(12,0),zone));assertFalse(engine.eligible(staff(),service(),true,rules,List.of(),at(16,30),zone));var x=staff();x.status=Model.Status.INACTIVE;assertFalse(engine.eligible(x,service(),true,rules,List.of(),at(10,0),zone));}
- @Test void rejectsOverlapAndUnassigned(){var b=new Booking();b.status=Model.BookingStatus.CONFIRMED;b.startAt=at(10,30);b.endAt=at(11,30);var r=List.of(rule(Model.AvailabilityType.WORKING,LocalTime.of(9,0),LocalTime.of(17,0)));assertFalse(engine.eligible(staff(),service(),true,r,List.of(b),at(10,0),zone));assertFalse(engine.eligible(staff(),service(),false,r,List.of(),at(10,0),zone));}
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import com.runloyal.booking.domain.*;
+import java.time.*;
+import java.util.*;
+import org.junit.jupiter.api.*;
+
+class AvailabilityEngineTest {
+  final AvailabilityEngine engine = new AvailabilityEngine();
+  final ZoneId zone = ZoneId.of("Asia/Kolkata");
+
+  Staff staff() {
+    var s = new Staff();
+    s.status = Model.Status.ACTIVE;
+    return s;
+  }
+
+  ServiceOffering service() {
+    var s = new ServiceOffering();
+    s.status = Model.Status.ACTIVE;
+    s.durationMinutes = 60;
+    return s;
+  }
+
+  StaffAvailability rule(Model.AvailabilityType t, LocalTime a, LocalTime b) {
+    var r = new StaffAvailability();
+    r.dayOfWeek = DayOfWeek.MONDAY;
+    r.type = t;
+    r.startTime = a;
+    r.endTime = b;
+    return r;
+  }
+
+  Instant at(int hour, int min) {
+    return ZonedDateTime.of(2026, 1, 5, hour, min, 0, 0, zone).toInstant();
+  }
+
+  @Test
+  void acceptsWorkingSlotAndTouchingBooking() {
+    var b = new Booking();
+    b.status = Model.BookingStatus.CONFIRMED;
+    b.startAt = at(9, 0);
+    b.endAt = at(10, 0);
+    assertTrue(
+        engine.eligible(
+            staff(),
+            service(),
+            true,
+            List.of(rule(Model.AvailabilityType.WORKING, LocalTime.of(9, 0), LocalTime.of(17, 0))),
+            List.of(b),
+            at(10, 0),
+            zone));
+  }
+
+  @Test
+  void rejectsBreakAndHoursAndInactive() {
+    var rules = List.of(
+        rule(Model.AvailabilityType.WORKING, LocalTime.of(9, 0), LocalTime.of(17, 0)),
+        rule(Model.AvailabilityType.BREAK, LocalTime.of(12, 0), LocalTime.of(13, 0)));
+    assertFalse(engine.eligible(staff(), service(), true, rules, List.of(), at(12, 0), zone));
+    assertFalse(engine.eligible(staff(), service(), true, rules, List.of(), at(16, 30), zone));
+    var x = staff();
+    x.status = Model.Status.INACTIVE;
+    assertFalse(engine.eligible(x, service(), true, rules, List.of(), at(10, 0), zone));
+  }
+
+  @Test
+  void rejectsOverlapAndUnassigned() {
+    var b = new Booking();
+    b.status = Model.BookingStatus.CONFIRMED;
+    b.startAt = at(10, 30);
+    b.endAt = at(11, 30);
+    var r = List.of(rule(Model.AvailabilityType.WORKING, LocalTime.of(9, 0), LocalTime.of(17, 0)));
+    assertFalse(engine.eligible(staff(), service(), true, r, List.of(b), at(10, 0), zone));
+    assertFalse(engine.eligible(staff(), service(), false, r, List.of(), at(10, 0), zone));
+  }
+
+  @Test
+  void cancelledBookingDoesNotBlockAvailability() {
+    var booking = new Booking();
+    booking.status = Model.BookingStatus.CANCELLED;
+    booking.startAt = at(10, 0);
+    booking.endAt = at(11, 0);
+    var rules = List.of(rule(Model.AvailabilityType.WORKING, LocalTime.of(9, 0), LocalTime.of(17, 0)));
+
+    assertTrue(engine.eligible(staff(), service(), true, rules, List.of(booking), at(10, 0), zone));
+  }
+
+  @Test
+  void inactiveServiceAndLongDurationAreRejected() {
+    var rules = List.of(rule(Model.AvailabilityType.WORKING, LocalTime.of(9, 0), LocalTime.of(17, 0)));
+    var inactive = service();
+    inactive.status = Model.Status.INACTIVE;
+    assertFalse(engine.eligible(staff(), inactive, true, rules, List.of(), at(10, 0), zone));
+
+    var longService = service();
+    longService.durationMinutes = 480;
+    assertFalse(engine.eligible(staff(), longService, true, rules, List.of(), at(10, 0), zone));
+  }
 }

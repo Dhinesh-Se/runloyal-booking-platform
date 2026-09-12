@@ -1,10 +1,11 @@
 package com.runloyal.booking.repo;
 
 import com.runloyal.booking.domain.*;
-import org.springframework.data.jpa.repository.*;
-import org.springframework.data.repository.query.Param;
+import jakarta.persistence.LockModeType;
 import java.time.*;
 import java.util.*;
+import org.springframework.data.jpa.repository.*;
+import org.springframework.data.repository.query.Param;
 
 public final class Repos {
     private Repos() {
@@ -47,9 +48,14 @@ public final class Repos {
         Optional<Booking> findByIdAndTenantId(UUID i, UUID t);
 
         @Query("select b from Booking b where b.tenantId=:t and b.staffId=:s and b.status='CONFIRMED' and b.startAt < :end and b.endAt > :start")
-        List<Booking> conflicts(@Param("t") UUID t, @Param("s") UUID s, @Param("start") Instant start,
+        List<Booking> conflicts(
+                @Param("t") UUID t,
+                @Param("s") UUID s,
+                @Param("start") Instant start,
                 @Param("end") Instant end);
 
-        List<Booking> findByTenantIdAndStartAtBetween(UUID t, Instant from, Instant to);
+        @Query("select b from Booking b where b.tenantId=:t and b.startAt < :to and b.endAt > :from order by b.startAt")
+        List<Booking> calendar(
+                @Param("t") UUID t, @Param("from") Instant from, @Param("to") Instant to);
     }
 }
