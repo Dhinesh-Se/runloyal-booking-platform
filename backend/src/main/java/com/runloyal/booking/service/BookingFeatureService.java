@@ -2,11 +2,17 @@ package com.runloyal.booking.service;
 
 import com.runloyal.booking.common.exception.ConflictException;
 import com.runloyal.booking.domain.*;
-import com.runloyal.booking.repo.Repos;
+import com.runloyal.booking.repo.AssignmentRepository;
+import com.runloyal.booking.repo.AvailabilityRepository;
+import com.runloyal.booking.repo.BookingRepository;
+import com.runloyal.booking.repo.ServiceRepository;
+import com.runloyal.booking.repo.StaffRepository;
+import com.runloyal.booking.repo.TenantRepository;
 import com.runloyal.booking.security.TenantContext;
 import com.runloyal.booking.web.dto.request.BookingCommand;
 import jakarta.transaction.Transactional;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -16,22 +22,22 @@ import org.springframework.stereotype.Service;
 @Service
 public class BookingFeatureService {
     private final TenantContext context;
-    private final Repos.Tenants tenants;
-    private final Repos.Services services;
-    private final Repos.Staffs staffs;
-    private final Repos.Assignments assignments;
-    private final Repos.Availabilities availabilities;
-    private final Repos.Bookings bookings;
+    private final TenantRepository tenants;
+    private final ServiceRepository services;
+    private final StaffRepository staffs;
+    private final AssignmentRepository assignments;
+    private final AvailabilityRepository availabilities;
+    private final BookingRepository bookings;
     private final AvailabilityEngine engine = new AvailabilityEngine();
 
     public BookingFeatureService(
             TenantContext context,
-            Repos.Tenants tenants,
-            Repos.Services services,
-            Repos.Staffs staffs,
-            Repos.Assignments assignments,
-            Repos.Availabilities availabilities,
-            Repos.Bookings bookings) {
+            TenantRepository tenants,
+            ServiceRepository services,
+            StaffRepository staffs,
+            AssignmentRepository assignments,
+            AvailabilityRepository availabilities,
+            BookingRepository bookings) {
         this.context = context;
         this.tenants = tenants;
         this.services = services;
@@ -53,6 +59,34 @@ public class BookingFeatureService {
                                 bookings.conflicts(
                                         tenant, staff.id, start, start.plusSeconds(service.durationMinutes * 60L))))
                 .toList();
+    }
+
+    public List<AvailableSlot> availableSlots(UUID serviceId, Instant from, Instant to) {
+        if (!from.isBefore(to))
+            throw new IllegalArgumentException("from must precede to");
+        var tenant = context.tenantId();
+        var service = find(services.findByIdAndTenantId(serviceId, tenant));
+        var zone = zone();
+        var local = LocalDateTime.ofInstant(from, zone).withSecond(0).withNano(0);
+        int minuteRemainder = local.getMinute() % 30;
+        if (minuteRemainder != 0)
+            local = local.plusMinutes(30 - minuteRemainder);
+        var endLocal = LocalDateTime.ofInstant(to, zone);
+        var slots = new java.util.ArrayList<AvailableSlot>();
+        while (local.isBefore(endLocal)) {
+            var start = local.atZone(zone).toInstant();
+            if (start.isBefore(to)) {
+                var eligibleStaff = available(serviceId, start);
+                if (!eligibleStaff.isEmpty()) {
+                    slots.add(new AvailableSlot(
+                            start,
+                            start.plusSeconds(service.durationMinutes * 60L),
+                            eligibleStaff));
+                }
+            }
+            local = local.plusMinutes(30);
+        }
+        return slots;
     }
 
     public List<Booking> calendar(Instant from, Instant to) {
@@ -118,5 +152,8 @@ public class BookingFeatureService {
 
     private <T> T find(java.util.Optional<T> value) {
         return value.orElseThrow(() -> new NoSuchElementException("Resource not found"));
+    }
+
+    public record AvailableSlot(Instant startAt, Instant endAt, List<Staff> availableStaff) {
     }
 }

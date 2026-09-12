@@ -3,7 +3,7 @@ package com.runloyal.booking.service;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.*;
 
-import com.runloyal.booking.repo.Repos;
+import com.runloyal.booking.repo.ServiceRepository;
 import com.runloyal.booking.security.TenantContext;
 import java.util.Optional;
 import java.util.UUID;
@@ -13,7 +13,7 @@ class ServiceCatalogServiceTest {
     @Test
     void resourceLookupAlwaysUsesAuthenticatedTenant() {
         var context = mock(TenantContext.class);
-        var services = mock(Repos.Services.class);
+        var services = mock(ServiceRepository.class);
         var tenant = UUID.randomUUID();
         var serviceId = UUID.randomUUID();
         when(context.tenantId()).thenReturn(tenant);

@@ -1,0 +1,108 @@
+/* ============================================================
+   RunLoyal Design System — CSS Custom Properties
+   ============================================================ */
+
+:root {
+  /* Backgrounds */
+  --bg-base: #0c0e1a;
+  --bg-surface: #141727;
+  --bg-elevated: #1c2035;
+  --bg-hover: #222640;
+  --bg-active: #252944;
+
+  /* Borders */
+  --border-subtle: rgba(99, 102, 241, 0.12);
+  --border-default: rgba(99, 102, 241, 0.2);
+  --border-strong: rgba(99, 102, 241, 0.35);
+
+  /* Primary (Indigo) */
+  --color-primary: #6366f1;
+  --color-primary-hover: #5254cc;
+  --color-primary-light: rgba(99, 102, 241, 0.15);
+  --color-primary-glow: rgba(99, 102, 241, 0.3);
+
+  /* Semantic */
+  --color-success: #22c55e;
+  --color-success-light: rgba(34, 197, 94, 0.15);
+  --color-warning: #f59e0b;
+  --color-warning-light: rgba(245, 158, 11, 0.15);
+  --color-danger: #ef4444;
+  --color-danger-light: rgba(239, 68, 68, 0.15);
+  --color-info: #38bdf8;
+  --color-info-light: rgba(56, 189, 248, 0.15);
+  --color-muted: #64748b;
+  --color-muted-light: rgba(100, 116, 139, 0.15);
+
+  /* Calendar block colors */
+  --cal-available-bg: rgba(34, 197, 94, 0.18);
+  --cal-available-border: #22c55e;
+  --cal-booked-bg: rgba(99, 102, 241, 0.22);
+  --cal-booked-border: #6366f1;
+  --cal-break-bg: rgba(245, 158, 11, 0.18);
+  --cal-break-border: #f59e0b;
+  --cal-off-bg: rgba(100, 116, 139, 0.15);
+  --cal-off-border: #64748b;
+
+  /* Text */
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --text-disabled: #3f4a5e;
+  --text-inverse: #0c0e1a;
+
+  /* Typography */
+  --font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-size-xs: 0.6875rem;   /* 11px */
+  --font-size-sm: 0.75rem;     /* 12px */
+  --font-size-base: 0.875rem;  /* 14px */
+  --font-size-md: 1rem;        /* 16px */
+  --font-size-lg: 1.125rem;    /* 18px */
+  --font-size-xl: 1.25rem;     /* 20px */
+  --font-size-2xl: 1.5rem;     /* 24px */
+  --font-size-3xl: 1.875rem;   /* 30px */
+
+  /* Spacing */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  /* Border radius */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 20px 40px rgba(0, 0, 0, 0.6);
+  --shadow-glow: 0 0 20px rgba(99, 102, 241, 0.2);
+
+  /* Transitions */
+  --transition-fast: 100ms ease;
+  --transition-base: 150ms ease;
+  --transition-slow: 250ms ease;
+
+  /* Layout */
+  --sidebar-width: 240px;
+  --sidebar-collapsed: 64px;
+  --topbar-height: 60px;
+  --content-max: 1400px;
+
+  /* Z-index */
+  --z-sidebar: 100;
+  --z-topbar: 90;
+  --z-modal: 200;
+  --z-toast: 300;
+  --z-tooltip: 250;
+}

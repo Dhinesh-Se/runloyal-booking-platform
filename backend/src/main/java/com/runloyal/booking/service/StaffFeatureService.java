@@ -2,7 +2,10 @@ package com.runloyal.booking.service;
 
 import com.runloyal.booking.common.exception.ConflictException;
 import com.runloyal.booking.domain.*;
-import com.runloyal.booking.repo.Repos;
+import com.runloyal.booking.repo.AssignmentRepository;
+import com.runloyal.booking.repo.AvailabilityRepository;
+import com.runloyal.booking.repo.ServiceRepository;
+import com.runloyal.booking.repo.StaffRepository;
 import com.runloyal.booking.security.TenantContext;
 import com.runloyal.booking.web.dto.request.*;
 import jakarta.transaction.Transactional;
@@ -14,17 +17,17 @@ import org.springframework.stereotype.Service;
 @Service
 public class StaffFeatureService {
     private final TenantContext context;
-    private final Repos.Staffs staffs;
-    private final Repos.Services services;
-    private final Repos.Assignments assignments;
-    private final Repos.Availabilities availabilities;
+    private final StaffRepository staffs;
+    private final ServiceRepository services;
+    private final AssignmentRepository assignments;
+    private final AvailabilityRepository availabilities;
 
     public StaffFeatureService(
             TenantContext context,
-            Repos.Staffs staffs,
-            Repos.Services services,
-            Repos.Assignments assignments,
-            Repos.Availabilities availabilities) {
+            StaffRepository staffs,
+            ServiceRepository services,
+            AssignmentRepository assignments,
+            AvailabilityRepository availabilities) {
         this.context = context;
         this.staffs = staffs;
         this.services = services;

@@ -2,7 +2,7 @@ package com.runloyal.booking.service;
 
 import com.runloyal.booking.domain.Model;
 import com.runloyal.booking.domain.ServiceOffering;
-import com.runloyal.booking.repo.Repos;
+import com.runloyal.booking.repo.ServiceRepository;
 import com.runloyal.booking.security.TenantContext;
 import com.runloyal.booking.web.dto.request.ServiceCommand;
 import java.util.List;
@@ -13,9 +13,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class ServiceCatalogService {
     private final TenantContext context;
-    private final Repos.Services services;
+    private final ServiceRepository services;
 
-    public ServiceCatalogService(TenantContext context, Repos.Services services) {
+    public ServiceCatalogService(TenantContext context, ServiceRepository services) {
         this.context = context;
         this.services = services;
     }

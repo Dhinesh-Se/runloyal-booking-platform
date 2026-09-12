@@ -10,6 +10,7 @@ The backend uses a pragmatic package-by-feature structure with a small shared la
 - `security.TenantContext` resolves the active Okta subject to an active tenant membership and enforces tenant-admin operations.
 - `common.exception` centralizes API error mapping and shared conflict/not-found types.
 - `repo.Repos` contains tenant-scoped repository methods. The staff lookup used by booking keeps its `PESSIMISTIC_WRITE` lock.
+- Calendar slot generation stays in `service.BookingFeatureService` and delegates each candidate to `AvailabilityEngine`; controllers only map the result to response DTOs.
 
 ## Invariants preserved
 

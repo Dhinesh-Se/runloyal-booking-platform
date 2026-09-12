@@ -6,6 +6,6 @@ services:
     healthcheck: {test: ["CMD","mysqladmin","ping","-h","localhost"], interval: 5s, timeout: 3s, retries: 20}
   api:
     build: .
-    environment: {DB_URL: jdbc:mysql://mysql:3306/runloyal, DB_USER: runloyal, DB_PASSWORD: runloyal, OKTA_ISSUER_URI: ${OKTA_ISSUER_URI}}
+    environment: {DB_URL: jdbc:mysql://mysql:3306/runloyal, DB_USER: runloyal, DB_PASSWORD: runloyal, OKTA_ISSUER_URI: ${OKTA_ISSUER_URI}, OKTA_AUDIENCE: ${OKTA_AUDIENCE:-api://default}}
     ports: ["8080:8080"]
     depends_on: {mysql: {condition: service_healthy}}

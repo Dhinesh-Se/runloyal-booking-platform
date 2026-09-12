@@ -1,0 +1,48 @@
+{
+  "name": "runloyal-admin-portal",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 3000 --strictPort",
+    "build": "tsc --noEmit && vite build",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@auth0/auth0-react": "^2.24.1",
+    "@hookform/resolvers": "^3.9.0",
+    "@tanstack/react-query": "^5.56.2",
+    "@tanstack/react-query-devtools": "^5.56.2",
+    "axios": "^1.7.7",
+    "date-fns": "^3.6.0",
+    "lucide-react": "^0.441.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-hook-form": "^7.53.0",
+    "react-hot-toast": "^2.4.1",
+    "react-router-dom": "^6.26.2",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.5.0",
+    "@testing-library/react": "^16.0.1",
+    "@testing-library/user-event": "^14.5.2",
+    "@types/react": "^18.3.5",
+    "@types/react-dom": "^18.3.0",
+    "@typescript-eslint/eslint-plugin": "^7.15.0",
+    "@typescript-eslint/parser": "^7.15.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "@vitest/coverage-v8": "^2.0.5",
+    "eslint": "^8.57.0",
+    "eslint-plugin-react-hooks": "^4.6.2",
+    "eslint-plugin-react-refresh": "^0.4.9",
+    "jsdom": "^25.0.0",
+    "msw": "^2.4.8",
+    "typescript": "^5.5.3",
+    "vite": "^5.4.2",
+    "vitest": "^2.0.5"
+  }
+}
