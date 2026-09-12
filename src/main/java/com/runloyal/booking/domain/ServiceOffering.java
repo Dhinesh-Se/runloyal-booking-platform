@@ -1,0 +1,2 @@
+package com.runloyal.booking.domain; import jakarta.persistence.*; import java.math.*; import java.util.*;
+@Entity @Table(name="services") public class ServiceOffering { @Id public UUID id=UUID.randomUUID(); @Column(name="tenant_id",nullable=false) public UUID tenantId; public String name; public String description; public String category; @Column(name="duration_minutes") public int durationMinutes; public BigDecimal price; @Enumerated(EnumType.STRING) public Model.Status status; }
