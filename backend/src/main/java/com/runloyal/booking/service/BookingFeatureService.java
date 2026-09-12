@@ -10,7 +10,7 @@ import com.runloyal.booking.repo.StaffRepository;
 import com.runloyal.booking.repo.TenantRepository;
 import com.runloyal.booking.security.TenantContext;
 import com.runloyal.booking.web.dto.request.BookingCommand;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -75,7 +75,7 @@ public class BookingFeatureService {
         var slots = new java.util.ArrayList<AvailableSlot>();
         while (local.isBefore(endLocal)) {
             var start = local.atZone(zone).toInstant();
-            if (start.isBefore(to)) {
+            if (!start.plusSeconds(service.durationMinutes * 60L).isAfter(to)) {
                 var eligibleStaff = available(serviceId, start);
                 if (!eligibleStaff.isEmpty()) {
                     slots.add(new AvailableSlot(
@@ -97,6 +97,7 @@ public class BookingFeatureService {
 
     @Transactional
     public Booking book(BookingCommand command) {
+        context.requireAdmin();
         var tenant = context.tenantId();
         var staff = find(staffs.lockByIdAndTenant(command.staffId(), tenant));
         var service = find(services.findByIdAndTenantId(command.serviceId(), tenant));
@@ -125,6 +126,7 @@ public class BookingFeatureService {
 
     @Transactional
     public Booking cancel(UUID id) {
+        context.requireAdmin();
         var booking = findBooking(id);
         if (booking.status == Model.BookingStatus.CANCELLED)
             throw new ConflictException("Booking already cancelled");

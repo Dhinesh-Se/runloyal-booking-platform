@@ -2,19 +2,19 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { ProtectedRoute } from '@/auth/ProtectedRoute'
 
-// Mock Auth0 and the provider boundary
-const mockSignInWithRedirect = vi.fn()
+// Mock the Okta provider boundary.
+const mockLogin = vi.fn()
 
 let mockAuthState: { isAuthenticated: boolean; isLoading?: boolean } = {
   isAuthenticated: false,
   isLoading: false,
 }
 
-vi.mock('@auth0/auth0-react', () => ({
-  useAuth0: () => ({
+vi.mock('@/auth/useAuth', () => ({
+  useAuth: () => ({
     isAuthenticated: mockAuthState.isAuthenticated,
     isLoading: mockAuthState.isLoading ?? false,
-    loginWithRedirect: mockSignInWithRedirect,
+    login: mockLogin,
   }),
 }))
 
@@ -31,7 +31,7 @@ describe('ProtectedRoute', () => {
     expect(screen.queryByText('Protected Content')).not.toBeInTheDocument()
   })
 
-  it('triggers signInWithRedirect when user is not authenticated', () => {
+  it('starts Okta sign-in when user is not authenticated', () => {
     mockAuthState = { isAuthenticated: false }
     render(
       <ProtectedRoute>
@@ -39,7 +39,7 @@ describe('ProtectedRoute', () => {
       </ProtectedRoute>
     )
 
-    expect(mockSignInWithRedirect).toHaveBeenCalled()
+    expect(mockLogin).toHaveBeenCalled()
     expect(screen.queryByText('Protected Content')).not.toBeInTheDocument()
   })
 

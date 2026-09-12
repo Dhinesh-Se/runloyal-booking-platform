@@ -24,6 +24,11 @@ export async function unassignStaffFromService(serviceId: string, staffId: strin
   await apiClient.delete(`/services/${serviceId}/staff/${staffId}`)
 }
 
+export async function listAssignedStaff(serviceId: string): Promise<StaffResponse[]> {
+  const { data } = await apiClient.get<StaffResponse[]>(`/services/${serviceId}/staff`)
+  return data
+}
+
 export async function getAvailableStaffForSlot(
   serviceId: string,
   startAt: string

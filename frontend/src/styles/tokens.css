@@ -1,65 +1,77 @@
 /* ============================================================
    RunLoyal Design System — CSS Custom Properties
+   A calm, data-dense admin surface for scheduling work: the
+   calendar and tables are the hero, chrome stays quiet.
    ============================================================ */
 
 :root {
-  /* Backgrounds */
-  --bg-base: #0c0e1a;
-  --bg-surface: #141727;
-  --bg-elevated: #1c2035;
-  --bg-hover: #222640;
-  --bg-active: #252944;
+  /* Backgrounds — deep ink, not pure black */
+  --bg-base: #0b0e14;
+  --bg-surface: #12161f;
+  --bg-elevated: #171c27;
+  --bg-hover: #1c2230;
+  --bg-active: #212838;
+  --bg-sidebar: #0d1017;
 
   /* Borders */
-  --border-subtle: rgba(99, 102, 241, 0.12);
-  --border-default: rgba(99, 102, 241, 0.2);
-  --border-strong: rgba(99, 102, 241, 0.35);
+  --border-subtle: rgba(148, 163, 184, 0.12);
+  --border-default: rgba(148, 163, 184, 0.2);
+  --border-strong: rgba(148, 163, 184, 0.32);
 
-  /* Primary (Indigo) */
-  --color-primary: #6366f1;
-  --color-primary-hover: #5254cc;
-  --color-primary-light: rgba(99, 102, 241, 0.15);
-  --color-primary-glow: rgba(99, 102, 241, 0.3);
+  /* Primary — cobalt (trust, scheduling, action) */
+  --color-primary: #3e63dd;
+  --color-primary-hover: #3453ba;
+  --color-primary-light: rgba(62, 99, 221, 0.14);
+  --color-primary-glow: rgba(62, 99, 221, 0.3);
+  --color-primary-text: #8fabf5;
+
+  /* Secondary accent — teal, used for availability/openness */
+  --color-accent: #12b5a6;
+  --color-accent-light: rgba(18, 181, 166, 0.14);
 
   /* Semantic */
-  --color-success: #22c55e;
-  --color-success-light: rgba(34, 197, 94, 0.15);
-  --color-warning: #f59e0b;
-  --color-warning-light: rgba(245, 158, 11, 0.15);
-  --color-danger: #ef4444;
-  --color-danger-light: rgba(239, 68, 68, 0.15);
-  --color-info: #38bdf8;
-  --color-info-light: rgba(56, 189, 248, 0.15);
+  --color-success: #2fb866;
+  --color-success-light: rgba(47, 184, 102, 0.14);
+  --color-warning: #e0a638;
+  --color-warning-light: rgba(224, 166, 56, 0.14);
+  --color-danger: #e5484d;
+  --color-danger-light: rgba(229, 72, 77, 0.14);
+  --color-info: #3e9ce0;
+  --color-info-light: rgba(62, 156, 224, 0.14);
   --color-muted: #64748b;
-  --color-muted-light: rgba(100, 116, 139, 0.15);
+  --color-muted-light: rgba(100, 116, 139, 0.14);
 
   /* Calendar block colors */
-  --cal-available-bg: rgba(34, 197, 94, 0.18);
-  --cal-available-border: #22c55e;
-  --cal-booked-bg: rgba(99, 102, 241, 0.22);
-  --cal-booked-border: #6366f1;
-  --cal-break-bg: rgba(245, 158, 11, 0.18);
-  --cal-break-border: #f59e0b;
-  --cal-off-bg: rgba(100, 116, 139, 0.15);
-  --cal-off-border: #64748b;
+  --cal-available-bg: rgba(18, 181, 166, 0.14);
+  --cal-available-border: #12b5a6;
+  --cal-available-text: #5fd9cd;
+  --cal-booked-bg: rgba(62, 99, 221, 0.2);
+  --cal-booked-border: #3e63dd;
+  --cal-break-bg: rgba(224, 166, 56, 0.14);
+  --cal-break-border: #e0a638;
+  --cal-off-bg: rgba(100, 116, 139, 0.1);
+  --cal-off-border: rgba(100, 116, 139, 0.4);
 
   /* Text */
-  --text-primary: #f1f5f9;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
-  --text-disabled: #3f4a5e;
-  --text-inverse: #0c0e1a;
+  --text-primary: #eef1f6;
+  --text-secondary: #99a2b3;
+  --text-muted: #6b7385;
+  --text-disabled: #454c5c;
+  --text-inverse: #0b0e14;
 
-  /* Typography */
+  /* Typography — Manrope carries headings/brand, Inter carries body & data */
   --font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-family-display: 'Manrope', 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
   --font-size-xs: 0.6875rem;   /* 11px */
   --font-size-sm: 0.75rem;     /* 12px */
   --font-size-base: 0.875rem;  /* 14px */
   --font-size-md: 1rem;        /* 16px */
   --font-size-lg: 1.125rem;    /* 18px */
-  --font-size-xl: 1.25rem;     /* 20px */
-  --font-size-2xl: 1.5rem;     /* 24px */
-  --font-size-3xl: 1.875rem;   /* 30px */
+  --font-size-xl: 1.3125rem;   /* 21px */
+  --font-size-2xl: 1.625rem;   /* 26px */
+  --font-size-3xl: 2rem;       /* 32px */
 
   /* Spacing */
   --space-1: 0.25rem;
@@ -73,20 +85,20 @@
   --space-12: 3rem;
   --space-16: 4rem;
 
-  /* Border radius */
+  /* Border radius — restrained, not the SaaS-card pill look */
   --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
-  --radius-2xl: 20px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+  --radius-2xl: 18px;
   --radius-full: 9999px;
 
-  /* Shadows */
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-xl: 0 20px 40px rgba(0, 0, 0, 0.6);
-  --shadow-glow: 0 0 20px rgba(99, 102, 241, 0.2);
+  /* Shadows — used sparingly (menus/modals), not under every card */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 6px 16px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 16px 32px rgba(0, 0, 0, 0.45);
+  --shadow-xl: 0 24px 48px -8px rgba(0, 0, 0, 0.55);
+  --shadow-glow: 0 0 0 3px var(--color-primary-glow);
 
   /* Transitions */
   --transition-fast: 100ms ease;
@@ -94,10 +106,10 @@
   --transition-slow: 250ms ease;
 
   /* Layout */
-  --sidebar-width: 240px;
+  --sidebar-width: 232px;
   --sidebar-collapsed: 64px;
-  --topbar-height: 60px;
-  --content-max: 1400px;
+  --topbar-height: 56px;
+  --content-max: 1440px;
 
   /* Z-index */
   --z-sidebar: 100;

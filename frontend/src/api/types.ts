@@ -74,6 +74,7 @@ export interface ApiError {
   message?: string
   error?: string
   errors?: Record<string, string>
+  validationErrors?: Record<string, string>
   status?: number
 }
 

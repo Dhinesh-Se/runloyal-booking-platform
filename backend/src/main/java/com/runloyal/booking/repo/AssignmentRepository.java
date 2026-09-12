@@ -6,4 +6,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface AssignmentRepository extends JpaRepository<StaffService, StaffService.Key> {
     boolean existsByTenantIdAndStaffIdAndServiceId(java.util.UUID tenantId, java.util.UUID staffId,
             java.util.UUID serviceId);
+
+    java.util.List<StaffService> findByTenantIdAndServiceId(java.util.UUID tenantId, java.util.UUID serviceId);
 }
