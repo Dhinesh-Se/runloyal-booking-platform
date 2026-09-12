@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useAuth } from './useAuth'
 
-export function ProtectedRoute({ children }: { children: React.ReactNode }) {
+export function ProtectedRoute({ children }: Readonly<{ children: React.ReactNode }>) {
   const { isLoading, isAuthenticated, login } = useAuth()
 
   useEffect(() => {

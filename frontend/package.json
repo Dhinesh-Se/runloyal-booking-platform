@@ -12,7 +12,10 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@auth0/auth0-react": "^2.24.1",
     "@hookform/resolvers": "^3.9.0",
+    "@okta/okta-auth-js": "^7.11.1",
+    "@okta/okta-react": "^6.9.0",
     "@tanstack/react-query": "^5.56.2",
     "@tanstack/react-query-devtools": "^5.56.2",
     "axios": "^1.7.7",

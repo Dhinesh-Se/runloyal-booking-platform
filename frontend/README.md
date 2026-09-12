@@ -82,7 +82,7 @@ cp .env.example .env
 ```
 Configure your Okta credentials:
 ```env
-VITE_OKTA_ISSUER=https://{yourOktaDomain}/oauth2/default
+VITE_OKTA_ISSUER_URI=https://{yourOktaDomain}/oauth2/default
 VITE_OKTA_CLIENT_ID={your-spa-client-id}
 VITE_OKTA_AUDIENCE=api://default
 VITE_API_BASE_URL=http://localhost:8080
