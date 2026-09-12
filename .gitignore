@@ -1,0 +1,25 @@
+# Java / Maven
+backend/target/
+*.class
+*.log
+
+# Frontend dependencies and build output
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# IDE files
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
