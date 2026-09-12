@@ -18,10 +18,17 @@ export function useAuth() {
   }
 
   const logout = async () => {
-    await auth0Logout({ logoutParams: { returnTo: AUTH0_LOGOUT_URI } })
+    sessionStorage.setItem('runloyal:logged-out', 'true')
+    try {
+      await auth0Logout({ logoutParams: { returnTo: AUTH0_LOGOUT_URI } })
+    } catch (error) {
+      sessionStorage.removeItem('runloyal:logged-out')
+      throw error
+    }
   }
 
   const login = () => {
+    sessionStorage.removeItem('runloyal:logged-out')
     void loginWithRedirect()
   }
 

@@ -103,6 +103,8 @@ VITE_API_BASE_URL=http://localhost:8080
 
 In Auth0, configure the application as a Single Page Application with Authorization Code + PKCE, token endpoint authentication `None`, and allow `http://localhost:3000/` as the callback URL, logout URL, web origin, and CORS origin. Create an API whose Identifier exactly matches `VITE_AUTH0_AUDIENCE`.
 
+Sign out uses the Auth0 logout endpoint and returns to `VITE_AUTH0_LOGOUT_URI`. The app keeps an explicit logged-out marker so the protected route does not immediately start a new login flow.
+
 ### Development Server
 
 ```bash

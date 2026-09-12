@@ -3,12 +3,13 @@ import { useAuth } from './useAuth'
 
 export function ProtectedRoute({ children }: Readonly<{ children: React.ReactNode }>) {
   const { isLoading, isAuthenticated, login } = useAuth()
+  const loggedOut = sessionStorage.getItem('runloyal:logged-out') === 'true'
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
+    if (!isLoading && !isAuthenticated && !loggedOut) {
       login()
     }
-  }, [isLoading, isAuthenticated, login])
+  }, [isLoading, isAuthenticated, loggedOut, login])
 
   if (isLoading) {
     // Auth state not yet resolved — show full-page loader
@@ -21,7 +22,12 @@ export function ProtectedRoute({ children }: Readonly<{ children: React.ReactNod
   }
 
   if (!isAuthenticated) {
-    return null
+    return (
+      <div className="auth-loading">
+        <span>You are signed out.</span>
+        <button type="button" onClick={login}>Sign in</button>
+      </div>
+    )
   }
 
   return <>{children}</>
