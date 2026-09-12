@@ -1,11 +1,34 @@
 services:
   mysql:
     image: mysql:8.4
-    environment: {MYSQL_DATABASE: runloyal, MYSQL_USER: runloyal, MYSQL_PASSWORD: runloyal, MYSQL_ROOT_PASSWORD: root}
-    ports: ["3306:3306"]
-    healthcheck: {test: ["CMD","mysqladmin","ping","-h","localhost"], interval: 5s, timeout: 3s, retries: 20}
+    environment:
+      MYSQL_DATABASE: runloyal
+      MYSQL_USER: runloyal
+      MYSQL_PASSWORD: runloyal
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test:
+        - CMD
+        - mysqladmin
+        - ping
+        - "-h"
+        - localhost
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
   api:
     build: .
-    environment: {DB_URL: jdbc:mysql://mysql:3306/runloyal, DB_USER: runloyal, DB_PASSWORD: runloyal, AUTH0_ISSUER_URI: ${AUTH0_ISSUER_URI}, AUTH0_AUDIENCE: ${AUTH0_AUDIENCE:-https://runloyal-booking-api}}
-    ports: ["8080:8080"]
-    depends_on: {mysql: {condition: service_healthy}}
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/runloyal
+      DB_USER: runloyal
+      DB_PASSWORD: runloyal
+      AUTH0_ISSUER_URI: ${AUTH0_ISSUER_URI}
+      AUTH0_AUDIENCE: ${AUTH0_AUDIENCE:-https://runloyal-booking-api}
+    ports:
+      - "8080:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
