@@ -155,9 +155,10 @@ public class BookingFeatureService {
                 assignments.existsByTenantIdAndStaffIdAndServiceId(tenant, staff.id, service.id),
                 rules,
                 conflicts,
-                start,
                 unavailable.inRange(tenant, List.of(staff.id), start,
-                        start.plusSeconds(service.durationMinutes * 60L)), start, zone(tenant));
+                        start.plusSeconds(service.durationMinutes * 60L)),
+                start,
+                zone(tenant));
     }
 
     private ZoneId zone(UUID tenant) {
