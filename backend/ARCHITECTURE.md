@@ -1,5 +1,7 @@
 # Backend architecture
 
+![RunLoyal Architecture Overview](../architecture-diagram.png)
+
 ```mermaid
 flowchart TD
     Browser[React SPA: Okta React and Auth JS] -->|Authorization Code with PKCE| Okta[Okta custom authorization server]

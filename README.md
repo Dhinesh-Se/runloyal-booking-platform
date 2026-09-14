@@ -13,6 +13,36 @@ Multi-tenant pet-service administration built with Spring Boot 3 / Java 17+, Rea
 
 Known limitations and concurrency/testing caveats are documented in [backend/TECHNICAL_NOTES.md](backend/TECHNICAL_NOTES.md#known-limitations).
 
+## Architecture overview
+
+![RunLoyal Architecture Overview](architecture-diagram.png)
+
+The diagram above illustrates the end-to-end request flow, tenant isolation boundaries, and data ownership:
+
+1. **Authentication & Identity Flow (Okta OIDC / PKCE)**:
+   - The **React + TypeScript SPA** initiates an Authorization Code flow with PKCE against the **Okta custom authorization server** (no client secrets stored in browser).
+   - Upon successful sign-in, Okta returns an access token which the SPA attaches as a `Bearer` token to every backend API request.
+
+2. **Tenant Isolation Boundary (Spring Boot API)**:
+   - **`SecurityConfig`** validates the JWT signature, custom issuer, audience, and scopes.
+   - **`TenantContext`** resolves the verified JWT subject (`sub`) to an active database user record, determining the `tenant_id` and role (`TENANT_ADMIN` or `STAFF`).
+   - *Strict isolation invariant:* **No tenant ID or role supplied in request bodies, URL paths, or query parameters is trusted.** Every downstream component operates strictly under the server-derived `TenantContext`.
+
+3. **Core Services & Availability Engine**:
+   - **Controllers & DTOs**: Expose REST endpoints with strict validation and map internal domain entities to clean response DTOs via `ApiMapper`.
+   - **Feature Services**: Encapsulate domain logic across `ServiceCatalogService`, `StaffFeatureService`, and `BookingFeatureService`.
+   - **`AvailabilityEngine`**: A pure functional engine evaluating staff working hours, breaks, dated unavailability exceptions, service durations, and booking conflicts in the tenant's IANA timezone.
+
+4. **Tenant-Scoped Persistence & Concurrency (MySQL)**:
+   - Every repository query is explicitly scoped by `(id, tenant_id)` to eliminate cross-tenant data leaks.
+   - During booking creation, a pessimistic write lock (`PESSIMISTIC_WRITE`) is acquired on the assigned staff row inside a transactional boundary to serialize concurrent slot claims.
+   - Schema creation and baseline data migrations are managed automatically by **Flyway**.
+
+5. **Multi-Tenant Seed Isolation**:
+   - Includes isolated demo tenants (**Happy Paws** in `Asia/Kolkata` and **Paws & Play** in `America/New_York`) with separate services, staff, and schedules.
+
+Detailed architectural decisions and tradeoffs are documented in [backend/ARCHITECTURE.md](backend/ARCHITECTURE.md).
+
 ## Prerequisites
 
 - Java 17+ and Maven 3.9+.
@@ -146,7 +176,7 @@ Section 12 of the assignment asks for the following. Shared setup is maintained 
 | Docker / Docker Compose | [backend/Dockerfile](backend/Dockerfile), [backend/docker-compose.yml](backend/docker-compose.yml) |
 | Automated tests | [backend/src/test](backend/src/test), [frontend/src/__tests__](frontend/src/__tests__) |
 | API documentation | http://localhost:8080/swagger-ui.html and http://localhost:8080/v3/api-docs when running |
-| Architecture diagram | [backend/ARCHITECTURE.md](backend/ARCHITECTURE.md) |
+| Architecture diagram | [architecture-diagram.png](architecture-diagram.png) (overview) and [backend/ARCHITECTURE.md](backend/ARCHITECTURE.md) (specs) |
 | AI usage | [AI_USAGE.md](AI_USAGE.md) |
 | Two-tenant demo data | [V2 seed](backend/src/main/resources/db/migration/V2__demo_data.sql) |
 | Isolation/concurrency/timezone notes | [backend/TECHNICAL_NOTES.md](backend/TECHNICAL_NOTES.md) |
