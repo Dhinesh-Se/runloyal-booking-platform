@@ -30,7 +30,8 @@ class StaffFeatureServiceTest {
     private final ServiceRepository services = mock(ServiceRepository.class);
     private final AssignmentRepository assignments = mock(AssignmentRepository.class);
     private final AvailabilityRepository availabilities = mock(AvailabilityRepository.class);
-    private final StaffFeatureService subject = new StaffFeatureService(context, staffs, services, assignments, availabilities);
+    private final UnavailabilityRepository unavailable = mock(UnavailabilityRepository.class);
+    private final StaffFeatureService subject = new StaffFeatureService(context, staffs, services, assignments, availabilities, unavailable);
     private final Staff staff = new Staff();
     private final ServiceOffering offering = new ServiceOffering();
 

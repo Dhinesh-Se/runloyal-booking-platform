@@ -7,6 +7,7 @@ Multi-tenant pet-service administration built with Spring Boot 3 / Java 17+, Rea
 - Okta-hosted login, protected portal/API, and server-side tenant membership.
 - Service catalog with category, duration, price, and active/inactive status.
 - Staff management, service assignments, and recurring working hours/breaks/OFF windows.
+- Dated staff-unavailability exceptions for one-off leave, closures, or training periods.
 - Week/day booking calendars, service/staff filtering, booking details, and cancellation.
 - Booking form with eligible-staff lookup, server-side slot revalidation, and conflict feedback.
 - `TENANT_ADMIN` mutations and tenant-scoped `STAFF` reads.
@@ -104,7 +105,7 @@ No tenant ID or role supplied by the browser is trusted. Secrets, actual user su
 
 ## API and troubleshooting
 
-OpenAPI/Swagger documents the request/response DTOs for `/api/me`, services, staff, assignments, recurring availability, eligible staff/slots, and booking list/create/details/cancellation. The API sends structured errors rather than persistence entities.
+OpenAPI/Swagger documents the request/response DTOs for `/api/me`, services, staff, assignments, recurring availability, dated unavailability exceptions, eligible staff/slots, and booking list/create/details/cancellation. The API sends structured errors rather than persistence entities.
 
 | Symptom | Check |
 | --- | --- |

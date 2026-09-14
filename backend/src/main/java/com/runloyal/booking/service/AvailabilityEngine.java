@@ -20,6 +20,18 @@ public class AvailabilityEngine {
       List<Booking> bookings,
       Instant start,
       ZoneId zone) {
+    return eligible(staff, service, assigned, rules, bookings, List.of(), start, zone);
+  }
+
+  public boolean eligible(
+      Staff staff,
+      ServiceOffering service,
+      boolean assigned,
+      List<StaffAvailability> rules,
+      List<Booking> bookings,
+      List<StaffUnavailability> unavailability,
+      Instant start,
+      ZoneId zone) {
     if (staff.status != Model.Status.ACTIVE || service.status != Model.Status.ACTIVE || !assigned
         || service.durationMinutes <= 0 || !Objects.equals(staff.tenantId, service.tenantId))
       return false;
@@ -51,7 +63,10 @@ public class AvailabilityEngine {
                         && b.status == Model.BookingStatus.CONFIRMED
                         && start.isBefore(b.endAt)
                         && end.isAfter(b.startAt));
-    return work && !breakHit && !booked;
+    boolean unavailable = unavailability.stream().anyMatch(u ->
+        Objects.equals(u.tenantId, staff.tenantId) && Objects.equals(u.staffId, staff.id)
+            && start.isBefore(u.endAt) && end.isAfter(u.startAt));
+    return work && !breakHit && !booked && !unavailable;
   }
 
     private static Instant boundary(LocalDateTime local, ZoneId zone, boolean start) {

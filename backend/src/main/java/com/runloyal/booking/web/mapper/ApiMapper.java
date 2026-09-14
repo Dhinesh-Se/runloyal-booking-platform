@@ -45,4 +45,8 @@ public class ApiMapper {
         value.customerName,
         value.petName);
   }
+
+  public UnavailabilityResponse unavailability(StaffUnavailability value) {
+    return new UnavailabilityResponse(value.id, value.tenantId, value.staffId, value.startAt, value.endAt, value.reason);
+  }
 }

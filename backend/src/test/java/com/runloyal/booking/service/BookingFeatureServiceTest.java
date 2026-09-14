@@ -33,8 +33,9 @@ class BookingFeatureServiceTest {
     private final AssignmentRepository assignments = mock(AssignmentRepository.class);
     private final AvailabilityRepository availabilities = mock(AvailabilityRepository.class);
     private final BookingRepository bookings = mock(BookingRepository.class);
+    private final UnavailabilityRepository unavailable = mock(UnavailabilityRepository.class);
     private final BookingFeatureService subject = new BookingFeatureService(
-            context, tenants, services, staffs, assignments, availabilities, bookings);
+            context, tenants, services, staffs, assignments, availabilities, bookings, unavailable);
     private final Staff staff = staff("Alex");
     private final ServiceOffering offering = new ServiceOffering();
     private final Instant monday = Instant.parse("2026-01-05T10:00:00Z");
