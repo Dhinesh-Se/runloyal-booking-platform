@@ -2,31 +2,31 @@
 
 ```mermaid
 flowchart TD
-	Browser[React SPA] -->|Auth0 access token| API[Spring Boot REST API]
-	API --> Security[JWT issuer and audience validation]
-	Security --> Tenant[TenantContext: Auth0 sub to active user and tenant]
-	API --> Controllers[Thin web controllers and DTOs]
-	Controllers --> Services[Application services]
-	Services --> Engine[AvailabilityEngine]
-	Services --> Repositories[Top-level tenant-scoped repositories]
-	Repositories --> Flyway[(MySQL via Flyway)]
-	Services --> Lock[Pessimistic staff-row lock for booking]
+    Browser[React SPA: Okta React and Auth JS] -->|Authorization Code with PKCE| Okta[Okta custom authorization server]
+    Okta -->|Access token for API; ID token for SPA| Browser
+    Browser -->|Access token via same-origin API proxy| Security[Spring Security JWT validation]
+    Security --> Controllers[Spring Boot controllers and DTOs]
+    Controllers --> Services[Application services]
+    Services --> Tenant[TenantContext: ACTIVE membership and role]
+    Tenant --> Repositories[Tenant-scoped JPA repositories]
+    Services --> Engine[AvailabilityEngine: schedules and conflicts]
+    Services -->|Staff-row lock and booking transaction| Repositories
+    Repositories --> DB[(MySQL)]
+    Flyway[Flyway schema and demo migrations] --> DB
 ```
 
-The backend uses a pragmatic package-by-feature structure with a small shared layer:
+## Responsibilities
 
-- `service.ServiceCatalogService` owns service offering CRUD.
-- `service.StaffFeatureService` owns staff CRUD, service assignments, and availability windows.
-- `service.BookingFeatureService` owns availability lookup and booking lifecycle.
-- `web.controller` contains thin HTTP adapters. Controllers accept request DTOs and return response DTOs, never JPA entities.
-- `web.dto` contains the public request and response records. `web.mapper.ApiMapper` makes entity-to-response conversion explicit.
-- `security.TenantContext` resolves the active Auth0 subject to an active tenant membership and enforces tenant-admin operations.
-- `common.exception` centralizes API error mapping and shared conflict/not-found types.
-- `repo` contains tenant-scoped repository methods. The staff lookup used by booking keeps its `PESSIMISTIC_WRITE` lock.
-- Calendar slot generation stays in `service.BookingFeatureService` and delegates each candidate to `AvailabilityEngine`; controllers only map the result to response DTOs.
+- **React/TypeScript portal:** routes, service/staff forms, calendars, booking workflows, and TanStack Query caching. Requests go through the Vite development proxy or a production same-origin reverse proxy.
+- **Authentication:** the public SPA uses Authorization Code + PKCE without a client secret. Spring Security validates JWT signature, custom issuer, API audience, expiration, subject, and access-token scopes; ID tokens are not API credentials.
+- **Controllers/DTOs:** thin HTTP adapters with validated requests and explicit response mapping through `ApiMapper`, not exposed JPA entities. Springdoc generates OpenAPI; exception handling returns structured errors.
+- **Application services:** `ServiceCatalogService` owns service CRUD; `StaffFeatureService` owns staff, assignments, and recurring schedules; `BookingFeatureService` owns eligible-slot lookup and booking creation/cancellation.
+- **Membership:** `TenantContext` maps the exact verified access-token `sub` to an ACTIVE `users` row. Database membership, not browser IDs or group claims, supplies tenant and role.
+- **Availability:** `AvailabilityEngine` evaluates active service/staff, assignments, complete duration, working windows, breaks/OFF, and booking conflicts in the tenant timezone.
+- **Persistence:** tenant-scoped JPA repositories store tenants, users, services, staff, assignments, availability, and bookings. Flyway owns schema/demo migrations. Booking writes acquire a pessimistic staff-row lock inside a transaction.
 
-## Invariants preserved
+## Boundaries and trade-offs
 
-Tenant IDs come only from the authenticated membership; request payloads cannot select a tenant. Availability is evaluated in the tenant timezone, requires active assigned staff and services, honors working/break windows, rejects cross-day slots, and excludes overlapping confirmed bookings. Booking creation locks the tenant-scoped staff row before checking and saving the slot. `GET /api/services/{serviceId}/staff` returns persisted, tenant-scoped assignments so the UI never guesses assignments from availability.
+Bookings and portal time labels are UTC; recurring schedules use tenant IANA zones. `TENANT_ADMIN` can mutate data; STAFF has tenant-scoped reads. Tokens are validated locally, so provider logout/revocation does not guarantee immediate rejection of an already-issued JWT.
 
-Entities remain persistence models only. Flyway migrations and the database schema are unchanged.
+The staff-row lock expresses the intended per-staff serialization strategy, but real MySQL concurrent-booking proof and transaction-snapshot analysis remain necessary. The calendar's schedule overlay is not yet an authoritative eligible-slot view. See [TECHNICAL_NOTES.md](TECHNICAL_NOTES.md) for these limitations and [README.md](../README.md) for configuration, API documentation, and demo setup.

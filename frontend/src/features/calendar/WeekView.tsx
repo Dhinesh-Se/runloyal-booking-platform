@@ -1,50 +1,22 @@
-import { useMemo } from 'react'
-import { CalendarBlock } from './CalendarBlock'
+import { CalendarCell, type CalendarCellProps } from './CalendarCell'
 import {
-  dateToDayOfWeek,
-  parseLocalTimeToMinutes,
   formatCalendarDay,
+  dateAndTimeToInstant,
+  deriveEndInstant,
 } from '@/utils/dates'
-import type { BookingResponse, AvailabilityResponse, StaffResponse, ServiceResponse } from '@/api/types'
 import type { CalendarSlot } from './useCalendar'
 
-interface WeekViewProps {
+interface WeekViewProps extends Omit<CalendarCellProps, 'startAt' | 'endAt'> {
   weekDays: Date[]
   timeSlots: CalendarSlot[]
-  bookings: BookingResponse[]
-  staffAvailabilities: Record<string, AvailabilityResponse[]>
-  staffList?: StaffResponse[]
-  services?: ServiceResponse[]
-  selectedStaffId?: string
-  selectedServiceId?: string
-  onSelectSlot: (startAtInstant: string, staffId?: string) => void
-  onSelectBooking: (bookingId: string) => void
 }
 
 export function WeekView({
   weekDays,
   timeSlots,
-  bookings,
-  staffAvailabilities,
-  staffList,
-  services,
-  selectedStaffId,
-  onSelectSlot,
-  onSelectBooking,
+  ...cellProps
 }: WeekViewProps) {
-  const todayStr = useMemo(() => new Date().toISOString().substring(0, 10), [])
-
-  const serviceMap = useMemo(() => {
-    const m = new Map<string, string>()
-    services?.forEach((s) => m.set(s.id, s.name))
-    return m
-  }, [services])
-
-  const staffMap = useMemo(() => {
-    const m = new Map<string, string>()
-    staffList?.forEach((s) => m.set(s.id, s.name))
-    return m
-  }, [staffList])
+  const todayStr = new Date().toISOString().substring(0, 10)
 
   return (
     <div className="calendar-week-container" style={{ overflowX: 'auto' }}>
@@ -73,7 +45,7 @@ export function WeekView({
             fontWeight: 600,
           }}
         >
-          Time
+          Time (UTC)
         </div>
 
         {/* Header row: 7 day columns */}
@@ -143,158 +115,11 @@ export function WeekView({
               {/* Day cells for this time slot */}
               {weekDays.map((day) => {
                 const dateStr = day.toISOString().substring(0, 10)
-                const dayOfWeek = dateToDayOfWeek(day)
-                const cellStartInstant = `${dateStr}T${slot.timeLabel}:00Z`
-                const slotMinutes = slot.minutes
-
-                // Check for confirmed booking covering this time
-                const booking = bookings.find((b) => {
-                  if (b.status === 'CANCELLED') return false
-                  const bDate = b.startAt.substring(0, 10)
-                  if (bDate !== dateStr) return false
-                  const bStartM = parseLocalTimeToMinutes(b.startAt.substring(11, 16))
-                  const bEndM = parseLocalTimeToMinutes(b.endAt.substring(11, 16))
-                  return slotMinutes >= bStartM && slotMinutes < bEndM
-                })
-
-                if (booking) {
-                  const staffName = staffMap.get(booking.staffId) || 'Staff'
-                  const svcName = serviceMap.get(booking.serviceId) || 'Service'
-                  const title = `${booking.customerName}${booking.petName ? ` (${booking.petName})` : ''}`
-
-                  return (
-                    <div
-                      key={dateStr}
-                      style={{
-                        padding: 3,
-                        borderBottom: '1px solid var(--border-subtle)',
-                        borderRight: '1px solid var(--border-subtle)',
-                      }}
-                    >
-                      <CalendarBlock
-                        type="BOOKED"
-                        title={title}
-                        subtitle={`${svcName} • ${staffName}`}
-                        timeLabel={slot.timeLabel}
-                        booking={booking}
-                        onClick={() => onSelectBooking(booking.id)}
-                      />
-                    </div>
-                  )
-                }
-
-                // Check staff availability rules for this day & time
-                // Check all relevant staff (or selected staff)
-                const relevantStaffIds = selectedStaffId
-                  ? [selectedStaffId]
-                  : staffList?.map((s) => s.id) || []
-
-                let isOff = false
-                let isBreak = false
-                let isWorking = false
-                const workingStaff: string[] = []
-
-                for (const sId of relevantStaffIds) {
-                  const windows = staffAvailabilities[sId] || []
-                  const dayWindows = windows.filter((w) => w.dayOfWeek === dayOfWeek)
-
-                  const offRule = dayWindows.find((w) => w.type === 'OFF')
-                  if (offRule && selectedStaffId) {
-                    isOff = true
-                    break
-                  }
-
-                  const breakRule = dayWindows.find((w) => {
-                    if (w.type !== 'BREAK') return false
-                    const s = parseLocalTimeToMinutes(w.startTime.substring(0, 5))
-                    const e = parseLocalTimeToMinutes(w.endTime.substring(0, 5))
-                    return slotMinutes >= s && slotMinutes < e
-                  })
-                  if (breakRule && selectedStaffId) {
-                    isBreak = true
-                    break
-                  }
-
-                  const workRule = dayWindows.find((w) => {
-                    if (w.type !== 'WORKING') return false
-                    const s = parseLocalTimeToMinutes(w.startTime.substring(0, 5))
-                    const e = parseLocalTimeToMinutes(w.endTime.substring(0, 5))
-                    return slotMinutes >= s && slotMinutes < e
-                  })
-                  if (workRule) {
-                    isWorking = true
-                    workingStaff.push(staffMap.get(sId) || 'Staff')
-                  }
-                }
-
-                if (isOff) {
-                  return (
-                    <div
-                      key={dateStr}
-                      style={{
-                        padding: 3,
-                        borderBottom: '1px solid var(--border-subtle)',
-                        borderRight: '1px solid var(--border-subtle)',
-                      }}
-                    >
-                      <CalendarBlock type="OFF" title="Off" />
-                    </div>
-                  )
-                }
-
-                if (isBreak) {
-                  return (
-                    <div
-                      key={dateStr}
-                      style={{
-                        padding: 3,
-                        borderBottom: '1px solid var(--border-subtle)',
-                        borderRight: '1px solid var(--border-subtle)',
-                      }}
-                    >
-                      <CalendarBlock type="BREAK" title="Break" />
-                    </div>
-                  )
-                }
-
-                if (isWorking) {
-                  const staffSubtitle =
-                    workingStaff.length === 1 ? workingStaff[0] : `${workingStaff.length} staff available`
-
-                  return (
-                    <div
-                      key={dateStr}
-                      style={{
-                        padding: 3,
-                        borderBottom: '1px solid var(--border-subtle)',
-                        borderRight: '1px solid var(--border-subtle)',
-                      }}
-                    >
-                      <CalendarBlock
-                        type="AVAILABLE"
-                        title="Available"
-                        subtitle={staffSubtitle}
-                        onClick={() => onSelectSlot(cellStartInstant, selectedStaffId)}
-                      />
-                    </div>
-                  )
-                }
-
-                // Empty / unscheduled cell
+                const cellStartInstant = dateAndTimeToInstant(day, slot.timeLabel)
+                const cellEndInstant = deriveEndInstant(cellStartInstant, 30)
                 return (
-                  <div
-                    key={dateStr}
-                    style={{
-                      padding: 3,
-                      borderBottom: '1px solid var(--border-subtle)',
-                      borderRight: '1px solid var(--border-subtle)',
-                    }}
-                  >
-                    <CalendarBlock
-                      type="EMPTY"
-                      onClick={() => onSelectSlot(cellStartInstant, selectedStaffId)}
-                    />
-                  </div>
+                  <CalendarCell key={dateStr} {...cellProps}
+                    startAt={cellStartInstant} endAt={cellEndInstant} />
                 )
               })}
             </div>

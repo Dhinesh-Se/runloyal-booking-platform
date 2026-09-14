@@ -10,6 +10,8 @@ import {
 } from './useAvailability'
 import { AvailabilityForm, availabilityToFormValues, type AvailabilityFormValues } from './AvailabilityForm'
 import { StaffWeekView } from './StaffWeekView'
+import { StaffAvailabilityMatrix } from './StaffAvailabilityMatrix'
+import { useStaffPermissions } from '@/features/staff/useStaffPermissions'
 import { Modal } from '@/components/ui/Modal'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { Button } from '@/components/ui/Button'
@@ -19,6 +21,7 @@ import { extractErrorMessage } from '@/utils/errors'
 import type { AvailabilityResponse, DayOfWeek } from '@/api/types'
 
 export function AvailabilityPage() {
+  const { canManage, identity } = useStaffPermissions()
   const { data: staffList, isLoading: staffLoading, isError: staffError, error: staffErr } = useStaff()
   const [selectedStaffId, setSelectedStaffId] = useState<string>('')
 
@@ -28,7 +31,7 @@ export function AvailabilityPage() {
     if (selectedStaffId) {
       return staffList.find((s) => s.id === selectedStaffId) ?? staffList[0]
     }
-    return staffList[0]
+    return staffList.find(s => s.status === 'ACTIVE') ?? staffList[0]
   }, [staffList, selectedStaffId])
 
   const staffId = activeStaff?.id ?? ''
@@ -51,12 +54,14 @@ export function AvailabilityPage() {
   const [formServerError, setFormServerError] = useState<unknown>(null)
 
   const handleOpenAdd = (day: DayOfWeek = 'MONDAY') => {
+    if (!canManage) return
     setPrefilledDay(day)
     setFormServerError(null)
     setIsAddOpen(true)
   }
 
   const handleCreate = async (values: AvailabilityFormValues) => {
+    if (!canManage) return
     setFormServerError(null)
     try {
       await createAv.mutateAsync(values)
@@ -68,7 +73,7 @@ export function AvailabilityPage() {
   }
 
   const handleUpdate = async (values: AvailabilityFormValues) => {
-    if (!editingWindow) return
+    if (!canManage || !editingWindow) return
     setFormServerError(null)
     try {
       await updateAv.mutateAsync({ id: editingWindow.id, command: values })
@@ -80,7 +85,7 @@ export function AvailabilityPage() {
   }
 
   const handleDelete = async () => {
-    if (!deletingWindow) return
+    if (!canManage || !deletingWindow) return
     try {
       await deleteAv.mutateAsync(deletingWindow.id)
       toast.success('Availability window deleted')
@@ -122,10 +127,10 @@ export function AvailabilityPage() {
           icon={<User size={36} />}
           title="No staff members found"
           message="You need to add staff members before configuring their availability schedules."
-          action={{
+          action={canManage ? {
             label: 'Add Staff Member',
             href: '/staff',
-          }}
+          } : undefined}
         />
       </div>
     )
@@ -138,7 +143,7 @@ export function AvailabilityPage() {
           <h1 className="page-title">Staff Availability</h1>
           <p className="page-subtitle">Configure weekly working hours, shifts, breaks, and days off</p>
         </div>
-        <Button
+        {canManage && <Button
           id="add-availability-btn"
           variant="primary"
           icon={<Plus size={16} />}
@@ -146,8 +151,12 @@ export function AvailabilityPage() {
           disabled={!activeStaff}
         >
           Add Window
-        </Button>
+        </Button>}
       </div>
+
+      <StaffAvailabilityMatrix staff={staffList} />
+      <h2>Recurring schedule editor</h2>
+      <p>Recurring times are tenant-local{identity.data?.timezone ? ` (${identity.data.timezone})` : ''}, not UTC. {canManage ? 'Changes apply to every matching weekday.' : 'Read-only schedule.'}</p>
 
       {/* Staff Selector Bar */}
       <div
@@ -201,7 +210,7 @@ export function AvailabilityPage() {
 
       {/* Add Modal */}
       <Modal
-        isOpen={isAddOpen}
+        isOpen={canManage && isAddOpen}
         onClose={() => setIsAddOpen(false)}
         title={`Add Availability Window — ${activeStaff?.name}`}
         size="md"
@@ -217,7 +226,7 @@ export function AvailabilityPage() {
 
       {/* Edit Modal */}
       <Modal
-        isOpen={!!editingWindow}
+        isOpen={canManage && !!editingWindow}
         onClose={() => setEditingWindow(null)}
         title={`Edit Availability — ${activeStaff?.name}`}
         size="md"
@@ -235,7 +244,7 @@ export function AvailabilityPage() {
 
       {/* Delete Confirmation Dialog */}
       <ConfirmDialog
-        isOpen={!!deletingWindow}
+        isOpen={canManage && !!deletingWindow}
         title="Delete Availability Window"
         message={`Are you sure you want to remove this ${deletingWindow?.type} window on ${deletingWindow?.dayOfWeek.toLowerCase()}?`}
         confirmLabel="Delete"

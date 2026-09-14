@@ -2,6 +2,8 @@ import { Plus, Edit2, Trash2 } from 'lucide-react'
 import type { AvailabilityResponse, DayOfWeek } from '@/api/types'
 import { AvailabilityTypeBadge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
+import { useStaffPermissions } from '@/features/staff/useStaffPermissions'
+import { scheduleTimeRange } from './availabilityDates'
 
 const DAYS: { day: DayOfWeek; label: string; short: string }[] = [
   { day: 'MONDAY', label: 'Monday', short: 'Mon' },
@@ -26,6 +28,7 @@ export function StaffWeekView({
   onEditWindow,
   onDeleteWindow,
 }: StaffWeekViewProps) {
+  const { canManage } = useStaffPermissions()
   // Group windows by day
   const windowsByDay = DAYS.reduce<Record<DayOfWeek, AvailabilityResponse[]>>(
     (acc, { day }) => {
@@ -69,10 +72,7 @@ export function StaffWeekView({
             {/* Window Pills */}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)', flex: 1 }}>
               {windows.map((w) => {
-                const timeStr =
-                  w.type === 'OFF'
-                    ? 'All Day'
-                    : `${w.startTime.substring(0, 5)} - ${w.endTime.substring(0, 5)}`
+                const timeStr = scheduleTimeRange(w)
 
                 return (
                   <div
@@ -91,7 +91,7 @@ export function StaffWeekView({
                     <span style={{ fontSize: 'var(--font-size-sm)', fontWeight: 500, color: 'var(--text-primary)' }}>
                       {timeStr}
                     </span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 2, marginLeft: 'var(--space-1)' }}>
+                    {canManage && <div style={{ display: 'flex', alignItems: 'center', gap: 2, marginLeft: 'var(--space-1)' }}>
                       <button
                         type="button"
                         className="icon-btn"
@@ -112,7 +112,7 @@ export function StaffWeekView({
                       >
                         <Trash2 size={13} />
                       </button>
-                    </div>
+                    </div>}
                   </div>
                 )
               })}
@@ -125,7 +125,7 @@ export function StaffWeekView({
             </div>
 
             {/* Quick Add Button */}
-            <Button
+            {canManage && <Button
               type="button"
               variant="ghost"
               size="sm"
@@ -134,7 +134,7 @@ export function StaffWeekView({
               aria-label={`Add schedule for ${label}`}
             >
               Add
-            </Button>
+            </Button>}
           </div>
         )
       })}

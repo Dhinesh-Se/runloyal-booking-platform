@@ -10,13 +10,14 @@ import com.runloyal.booking.repo.StaffRepository;
 import com.runloyal.booking.repo.TenantRepository;
 import com.runloyal.booking.security.TenantContext;
 import com.runloyal.booking.web.dto.request.BookingCommand;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
+import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.ZoneId;
-import java.util.List;
-import java.util.NoSuchElementException;
-import java.util.UUID;
+import java.util.*;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -47,55 +48,56 @@ public class BookingFeatureService {
         this.bookings = bookings;
     }
 
+    @Transactional(readOnly = true)
     public List<Staff> available(UUID serviceId, Instant start) {
         var tenant = context.tenantId();
         var service = find(services.findByIdAndTenantId(serviceId, tenant));
-        return staffs.findByTenantId(tenant).stream()
-                .filter(
-                        staff -> eligible(
-                                staff,
-                                service,
-                                start,
-                                bookings.conflicts(
-                                        tenant, staff.id, start, start.plusSeconds(service.durationMinutes * 60L))))
-                .toList();
+        var data = loadAvailability(tenant, serviceId, start, start.plusSeconds(service.durationMinutes * 60L));
+        return eligibleStaff(service, start, data);
     }
 
+    @Transactional(readOnly = true)
     public List<AvailableSlot> availableSlots(UUID serviceId, Instant from, Instant to) {
-        if (!from.isBefore(to))
-            throw new IllegalArgumentException("from must precede to");
+        validateRange(from, to);
         var tenant = context.tenantId();
         var service = find(services.findByIdAndTenantId(serviceId, tenant));
-        var zone = zone();
-        var local = LocalDateTime.ofInstant(from, zone).withSecond(0).withNano(0);
-        int minuteRemainder = local.getMinute() % 30;
-        if (minuteRemainder != 0)
-            local = local.plusMinutes(30 - minuteRemainder);
-        var endLocal = LocalDateTime.ofInstant(to, zone);
-        var slots = new java.util.ArrayList<AvailableSlot>();
-        while (local.isBefore(endLocal)) {
-            var start = local.atZone(zone).toInstant();
-            if (!start.plusSeconds(service.durationMinutes * 60L).isAfter(to)) {
-                var eligibleStaff = available(serviceId, start);
-                if (!eligibleStaff.isEmpty()) {
-                    slots.add(new AvailableSlot(
-                            start,
-                            start.plusSeconds(service.durationMinutes * 60L),
-                            eligibleStaff));
+        var data = loadAvailability(tenant, serviceId, from, to);
+        // Build actual instants on the local half-hour grid. Unlike local.plusMinutes().atZone(),
+        // valid offsets enumerate BOTH repeated occurrences and omit nonexistent gap slots.
+        // Sorting instants keeps the response chronological even across a backwards clock change.
+        var candidates = new TreeSet<Instant>();
+        var lastDate = to.atZone(data.zone).toLocalDate();
+        for (var date = from.atZone(data.zone).toLocalDate(); !date.isAfter(lastDate); date = date.plusDays(1)) {
+            for (int minute = 0; minute < 24 * 60; minute += 30) {
+                var local = date.atTime(LocalTime.of(minute / 60, minute % 60));
+                for (var offset : data.zone.getRules().getValidOffsets(local)) {
+                    var start = local.toInstant(offset);
+                    if (!start.isBefore(from) && start.isBefore(to))
+                        candidates.add(start);
                 }
             }
-            local = local.plusMinutes(30);
+        }
+        var slots = new ArrayList<AvailableSlot>();
+        for (var start : candidates) {
+            var end = start.plusSeconds(service.durationMinutes * 60L);
+            if (end.isAfter(to))
+                continue;
+            var eligibleStaff = eligibleStaff(service, start, data);
+            if (!eligibleStaff.isEmpty())
+                slots.add(new AvailableSlot(start, end, eligibleStaff));
         }
         return slots;
     }
 
+    @Transactional(readOnly = true)
     public List<Booking> calendar(Instant from, Instant to) {
-        if (!from.isBefore(to))
-            throw new IllegalArgumentException("from must precede to");
+        validateRange(from, to);
         return bookings.calendar(context.tenantId(), from, to);
     }
 
-    @Transactional
+    // Membership reads precede the staff lock. READ_COMMITTED is essential: after waiting for
+    // that lock, a MySQL REPEATABLE_READ snapshot could otherwise hide a just-committed booking.
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public Booking book(BookingCommand command) {
         context.requireAdmin();
         var tenant = context.tenantId();
@@ -103,6 +105,7 @@ public class BookingFeatureService {
         var service = find(services.findByIdAndTenantId(command.serviceId(), tenant));
         Instant end = command.startAt().plusSeconds(service.durationMinutes * 60L);
         if (!eligible(
+            tenant,
                 staff,
                 service,
                 command.startAt(),
@@ -113,6 +116,8 @@ public class BookingFeatureService {
         booking.staffId = staff.id;
         booking.serviceId = service.id;
         booking.startAt = command.startAt();
+        // Snapshot the duration at creation. Later service edits only affect future bookings;
+        // existing booking intervals (including calendar/conflict checks) remain immutable.
         booking.endAt = end;
         booking.status = Model.BookingStatus.CONFIRMED;
         booking.customerName = command.customerName();
@@ -124,10 +129,14 @@ public class BookingFeatureService {
         return find(bookings.findByIdAndTenantId(id, context.tenantId()));
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public Booking cancel(UUID id) {
         context.requireAdmin();
-        var booking = findBooking(id);
+        var tenant = context.tenantId();
+        // Read only the owner key before locking, not a managed entity with potentially stale state.
+        var staffId = find(bookings.findStaffIdByIdAndTenantId(id, tenant));
+        find(staffs.lockByIdAndTenant(staffId, tenant));
+        var booking = find(bookings.findByIdAndTenantId(id, tenant));
         if (booking.status == Model.BookingStatus.CANCELLED)
             throw new ConflictException("Booking already cancelled");
         booking.status = Model.BookingStatus.CANCELLED;
@@ -135,8 +144,7 @@ public class BookingFeatureService {
     }
 
     private boolean eligible(
-            Staff staff, ServiceOffering service, Instant start, List<Booking> conflicts) {
-        var tenant = context.tenantId();
+            UUID tenant, Staff staff, ServiceOffering service, Instant start, List<Booking> conflicts) {
         var rules = availabilities.findByTenantIdAndStaffId(tenant, staff.id);
         return engine.eligible(
                 staff,
@@ -145,12 +153,42 @@ public class BookingFeatureService {
                 rules,
                 conflicts,
                 start,
-                zone());
+                zone(tenant));
     }
 
-    private ZoneId zone() {
-        return ZoneId.of(find(tenants.findById(context.tenantId())).timezone);
+    private ZoneId zone(UUID tenant) {
+        return ZoneId.of(find(tenants.findById(tenant)).timezone);
     }
+
+    private void validateRange(Instant from, Instant to) {
+        if (from == null || to == null || !from.isBefore(to))
+            throw new IllegalArgumentException("from must precede to");
+        if (Duration.between(from, to).compareTo(Duration.ofDays(31)) > 0)
+            throw new IllegalArgumentException("Range must not exceed 31 days");
+    }
+
+    private AvailabilityData loadAvailability(UUID tenant, UUID serviceId, Instant from, Instant to) {
+        var assigned = assignments.findByTenantIdAndServiceId(tenant, serviceId).stream()
+                .map(a -> a.staffId).collect(Collectors.toSet());
+        var staff = staffs.findByTenantId(tenant).stream()
+                .filter(s -> s.status == Model.Status.ACTIVE && assigned.contains(s.id)).toList();
+        var rules = staff.isEmpty() ? Map.<UUID, List<StaffAvailability>>of()
+                : availabilities.findByTenantIdAndStaffIdIn(tenant, staff.stream().map(s -> s.id).toList())
+                        .stream().collect(Collectors.groupingBy(r -> r.staffId));
+        var confirmed = staff.isEmpty() ? Map.<UUID, List<Booking>>of()
+                : bookings.confirmedInRange(tenant, from, to).stream()
+                        .collect(Collectors.groupingBy(b -> b.staffId));
+        return new AvailabilityData(staff, rules, confirmed, zone(tenant));
+    }
+
+    private List<Staff> eligibleStaff(ServiceOffering service, Instant start, AvailabilityData data) {
+        return data.staff.stream().filter(staff -> engine.eligible(staff, service, true,
+                data.rules.getOrDefault(staff.id, List.of()),
+                data.confirmed.getOrDefault(staff.id, List.of()), start, data.zone)).toList();
+    }
+
+    private record AvailabilityData(List<Staff> staff, Map<UUID, List<StaffAvailability>> rules,
+            Map<UUID, List<Booking>> confirmed, ZoneId zone) {}
 
     private <T> T find(java.util.Optional<T> value) {
         return value.orElseThrow(() -> new NoSuchElementException("Resource not found"));

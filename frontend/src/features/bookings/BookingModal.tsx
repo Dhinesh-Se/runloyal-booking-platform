@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
 import toast from 'react-hot-toast'
 import { AlertCircle, Clock, DollarSign } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
@@ -9,20 +9,11 @@ import { Button } from '@/components/ui/Button'
 import { useServices } from '@/features/services/useServices'
 import { getAvailableStaffForSlot } from '@/api/staff'
 import { useCreateBooking } from './useBookings'
+import { useCanManageBookings } from './useBookingPermissions'
+import { bookingDefaults, bookingSchema, bookingStartInstant, type BookingFormValues } from './bookingForm'
 import type { BookingResponse, StaffResponse } from '@/api/types'
 import { extractErrorMessage, isConflictError } from '@/utils/errors'
-import { deriveEndInstant, formatInstantTime } from '@/utils/dates'
-
-const bookingSchema = z.object({
-  serviceId: z.string().min(1, 'Please select a service'),
-  staffId: z.string().min(1, 'Please select an available staff member'),
-  startAtDate: z.string().min(1, 'Date is required'),
-  startAtTime: z.string().min(1, 'Time is required').regex(/^\d{2}:\d{2}$/, 'Format: HH:mm'),
-  customerName: z.string().min(1, 'Customer name is required').max(100),
-  petName: z.string().max(100).optional(),
-})
-
-type BookingFormValues = z.infer<typeof bookingSchema>
+import { formatInstantTime } from '@/utils/dates'
 
 interface BookingModalProps {
   isOpen: boolean
@@ -43,32 +34,22 @@ export function BookingModal({
 }: BookingModalProps) {
   const { data: services, isLoading: servicesLoading } = useServices()
   const createBookingMutation = useCreateBooking()
-
-  // Parse initial startAt into date (YYYY-MM-DD) and time (HH:mm) in UTC
-  const defaultDate = initialStartAt
-    ? initialStartAt.substring(0, 10)
-    : new Date().toISOString().substring(0, 10)
-  const defaultTime = initialStartAt
-    ? initialStartAt.substring(11, 16)
-    : '09:00'
+  const canManageBookings = useCanManageBookings()
+  const queryClient = useQueryClient()
+  const defaultServicePending = useRef(!initialServiceId)
+  const [appliedPrefill, setAppliedPrefill] = useState({ isOpen, initialServiceId, initialStartAt })
 
   const {
     register,
     handleSubmit,
     watch,
     setValue,
+    getValues,
     reset,
     formState: { errors, isSubmitting },
   } = useForm<BookingFormValues>({
     resolver: zodResolver(bookingSchema),
-    defaultValues: {
-      serviceId: initialServiceId ?? '',
-      staffId: initialStaffId ?? '',
-      startAtDate: defaultDate,
-      startAtTime: defaultTime,
-      customerName: '',
-      petName: '',
-    },
+    defaultValues: bookingDefaults(initialServiceId, initialStaffId, initialStartAt),
   })
 
   // Watch fields to dynamically query available staff
@@ -77,69 +58,94 @@ export function BookingModal({
   const selectedStartAtTime = watch('startAtTime')
   const selectedStaffId = watch('staffId')
 
-  const [availableStaff, setAvailableStaff] = useState<StaffResponse[]>([])
-  const [staffLoading, setStaffLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  // Derive active service
-  const activeService = services?.find((s) => s.id === selectedServiceId)
-
-  // Construct ISO Instant
-  const currentIsoStartAt =
-    selectedStartAtDate && selectedStartAtTime
-      ? `${selectedStartAtDate}T${selectedStartAtTime}:00Z`
-      : null
+  const activeService = services?.find((s) => s.id === selectedServiceId && s.status === 'ACTIVE')
+  const currentIsoStartAt = bookingStartInstant(selectedStartAtDate, selectedStartAtTime)
+  // Opening/changing slots must not query the old form before the reset effect.
+  // A staff-only prefill change can keep using the same slot's eligibility cache.
+  const prefillApplied = appliedPrefill.isOpen === isOpen &&
+    appliedPrefill.initialServiceId === initialServiceId && appliedPrefill.initialStartAt === initialStartAt
+  const staffQueryEnabled = isOpen && prefillApplied && !!activeService && !!currentIsoStartAt
+  const staffQuery = useQuery({
+    queryKey: ['available-staff', selectedServiceId, currentIsoStartAt],
+    queryFn: () => getAvailableStaffForSlot(selectedServiceId, currentIsoStartAt!),
+    enabled: staffQueryEnabled,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    retry: false,
+    // Never borrow eligibility from another service/time, even with global defaults.
+    placeholderData: undefined,
+  })
+  const staffReady = staffQueryEnabled && staffQuery.isSuccess &&
+    staffQuery.fetchStatus === 'idle' && !staffQuery.isPlaceholderData
+  const availableStaff = staffReady ? staffQuery.data ?? [] : []
+  const selectedStaffEligible = availableStaff.some((staff) => staff.id === selectedStaffId)
 
   // Reset form when modal opens or initial props change
   useEffect(() => {
     if (isOpen) {
-      reset({
-        serviceId: initialServiceId ?? (services && services.length > 0 ? services[0].id : ''),
-        staffId: initialStaffId ?? '',
-        startAtDate: defaultDate,
-        startAtTime: defaultTime,
-        customerName: '',
-        petName: '',
-      })
+      reset(bookingDefaults(initialServiceId, initialStaffId, initialStartAt))
+      defaultServicePending.current = !initialServiceId
       setErrorMessage(null)
     }
-  }, [isOpen, initialServiceId, initialStaffId, initialStartAt, defaultDate, defaultTime, reset, services])
+    setAppliedPrefill({ isOpen, initialServiceId, initialStartAt })
+  }, [isOpen, initialServiceId, initialStaffId, initialStartAt, reset])
 
-  // Fetch available staff when service or start time changes
+  // Initial catalogue load supplies only the default service, never resets user input.
   useEffect(() => {
-    if (!isOpen || !selectedServiceId || !currentIsoStartAt) return
-
-    let cancelled = false
-    setStaffLoading(true)
-
-    getAvailableStaffForSlot(selectedServiceId, currentIsoStartAt)
-      .then((staff) => {
-        if (cancelled) return
-        setAvailableStaff(staff)
-        // Auto-select staff if initialStaffId is available or if only 1 staff available
-        if (initialStaffId && staff.some((s) => s.id === initialStaffId)) {
-          setValue('staffId', initialStaffId)
-        } else if (staff.length === 1) {
-          setValue('staffId', staff[0].id)
-        } else if (selectedStaffId && !staff.some((s) => s.id === selectedStaffId)) {
-          setValue('staffId', '')
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setAvailableStaff([])
-      })
-      .finally(() => {
-        if (!cancelled) setStaffLoading(false)
-      })
-
-    return () => {
-      cancelled = true
+    if (!isOpen || !defaultServicePending.current) return
+    if (getValues('serviceId')) {
+      defaultServicePending.current = false
+      return
     }
-  }, [isOpen, selectedServiceId, currentIsoStartAt, initialStaffId, setValue, selectedStaffId])
+    const firstActive = services?.find((service) => service.status === 'ACTIVE')
+    if (firstActive) {
+      setValue('serviceId', firstActive.id)
+      defaultServicePending.current = false
+    }
+  }, [isOpen, initialServiceId, initialStaffId, initialStartAt, services, getValues, setValue])
+
+  // Reconcile only against verified results, not on selection changes. Keep a valid
+  // manual choice; an old prefill must not keep overriding it after refreshes.
+  useEffect(() => {
+    if (!isOpen || !staffReady) return
+    // A prefill reset runs before this effect; do not reconcile the new form
+    // against the previous render's slot while its new query is still mounting.
+    if (getValues('serviceId') !== selectedServiceId ||
+      bookingStartInstant(getValues('startAtDate'), getValues('startAtTime')) !== currentIsoStartAt) return
+    const staff = staffQuery.data ?? []
+    const selected = getValues('staffId')
+    if (selected && !staff.some((member) => member.id === selected)) {
+      setValue('staffId', '', { shouldValidate: true })
+    } else if (!selected && staff.length === 1) {
+      setValue('staffId', staff[0].id, { shouldValidate: true })
+    }
+  }, [isOpen, staffReady, staffQuery.data, selectedServiceId, currentIsoStartAt,
+    initialServiceId, initialStaffId, initialStartAt, getValues, setValue])
+
+  const endDate = currentIsoStartAt && activeService && activeService.durationMinutes > 0
+    ? new Date(Date.parse(currentIsoStartAt) + activeService.durationMinutes * 60_000)
+    : null
+  const endInstantDisplay = endDate && Number.isFinite(endDate.getTime()) ? endDate.toISOString() : null
 
   const onSubmit = async (data: BookingFormValues) => {
     setErrorMessage(null)
-    const startAt = `${data.startAtDate}T${data.startAtTime}:00Z`
+    if (!isOpen || !canManageBookings) {
+      setErrorMessage('Only active tenant administrators can create bookings.')
+      return
+    }
+    const startAt = bookingStartInstant(data.startAtDate, data.startAtTime)
+    // Read the cache synchronously too: invalidation may begin while async form
+    // validation is running, before the observer has delivered another render.
+    const eligibility = queryClient.getQueryState<StaffResponse[]>(['available-staff', data.serviceId, startAt])
+    if (!staffReady || !startAt || !endInstantDisplay || startAt !== currentIsoStartAt ||
+      data.serviceId !== activeService?.id ||
+      eligibility?.status !== 'success' || eligibility.fetchStatus !== 'idle' || eligibility.isInvalidated ||
+      !eligibility.data?.some((staff) => staff.id === data.staffId) || createBookingMutation.isPending) {
+      setErrorMessage('Please wait for availability to be checked and select an eligible staff member.')
+      return
+    }
 
     try {
       const result = await createBookingMutation.mutateAsync({
@@ -164,21 +170,15 @@ export function BookingModal({
     }
   }
 
-  // End time display calculation
-  const endInstantDisplay =
-    currentIsoStartAt && activeService
-      ? deriveEndInstant(currentIsoStartAt, activeService.durationMinutes)
-      : null
-
-  const handleFormSubmit = (data: BookingFormValues) => {
-    return onSubmit(data)
-  }
-
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="New Booking" size="md">
-      <form onSubmit={handleSubmit(handleFormSubmit)} noValidate className="form" id="booking-create-form">
+      <form onSubmit={handleSubmit(onSubmit)} noValidate className="form" id="booking-create-form">
+        {!canManageBookings && (
+          <p role="alert">Only active tenant administrators can create bookings.</p>
+        )}
         {errorMessage && (
           <div
+            role="alert"
             className="card"
             style={{
               background: 'var(--color-danger-light)',
@@ -206,9 +206,10 @@ export function BookingModal({
             className={`form__select ${errors.serviceId ? 'form__input--error' : ''}`}
             disabled={servicesLoading}
             {...register('serviceId')}
+            value={selectedServiceId}
           >
             <option value="">-- Select a Service --</option>
-            {services?.map((s) => (
+            {services?.filter((s) => s.status === 'ACTIVE').map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name} ({s.durationMinutes} min — ${s.price.toFixed(2)})
               </option>
@@ -216,6 +217,9 @@ export function BookingModal({
           </select>
           {errors.serviceId && (
             <span className="form__error" role="alert">{errors.serviceId.message}</span>
+          )}
+          {selectedServiceId && !servicesLoading && !activeService && (
+            <span className="form__error" role="alert">Please select an active service.</span>
           )}
         </div>
 
@@ -290,12 +294,17 @@ export function BookingModal({
           <select
             id="booking-staff"
             className={`form__select ${errors.staffId ? 'form__input--error' : ''}`}
-            disabled={staffLoading || !selectedServiceId}
+            disabled={!staffReady}
             {...register('staffId')}
+            value={selectedStaffId}
           >
             <option value="">
-              {staffLoading
+              {staffQueryEnabled && staffQuery.isFetching
                 ? 'Checking available staff...'
+                : staffQueryEnabled && staffQuery.isError
+                ? '-- Availability check failed --'
+                : !staffReady
+                ? '-- Select an active service and valid date/time --'
                 : availableStaff.length === 0
                 ? '-- No staff available for this slot --'
                 : '-- Select Staff Member --'}
@@ -309,7 +318,15 @@ export function BookingModal({
           {errors.staffId && (
             <span className="form__error" role="alert">{errors.staffId.message}</span>
           )}
-          {!staffLoading && selectedServiceId && availableStaff.length === 0 && (
+          {staffQueryEnabled && staffQuery.isError && (
+            <div role="alert" className="form__error">
+              <span>Unable to check staff availability: {extractErrorMessage(staffQuery.error)}</span>
+              <Button type="button" variant="ghost" onClick={() => void staffQuery.refetch()} disabled={staffQuery.isFetching}>
+                Retry availability
+              </Button>
+            </div>
+          )}
+          {staffReady && availableStaff.length === 0 && (
             <span className="form__hint" style={{ color: 'var(--color-warning)' }}>
               No staff members are scheduled and available at this date and time for this service.
             </span>
@@ -357,7 +374,7 @@ export function BookingModal({
             type="submit"
             variant="primary"
             loading={isSubmitting}
-            disabled={staffLoading || availableStaff.length === 0}
+            disabled={!canManageBookings || !staffReady || !selectedStaffEligible || !endInstantDisplay}
           >
             Confirm Booking
           </Button>

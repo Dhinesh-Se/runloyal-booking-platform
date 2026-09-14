@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Plus, Edit2, ChevronRight } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useStaff, useCreateStaff, useUpdateStaff } from './useStaff'
+import { useStaffPermissions } from './useStaffPermissions'
 import { StaffForm, type StaffFormValues } from './StaffForm'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
@@ -13,6 +14,7 @@ import { extractErrorMessage } from '@/utils/errors'
 import type { StaffResponse } from '@/api/types'
 
 export function StaffPage() {
+  const { canManage } = useStaffPermissions()
   const { data: staff, isLoading, isError, error, refetch } = useStaff()
   const createStaff = useCreateStaff()
   const updateStaff = useUpdateStaff()
@@ -22,6 +24,7 @@ export function StaffPage() {
   const [mutationError, setMutationError] = useState<unknown>(null)
 
   const handleCreate = async (values: StaffFormValues) => {
+    if (!canManage) return
     setMutationError(null)
     try {
       await createStaff.mutateAsync(values)
@@ -33,7 +36,7 @@ export function StaffPage() {
   }
 
   const handleEdit = async (values: StaffFormValues) => {
-    if (!editTarget) return
+    if (!canManage || !editTarget) return
     setMutationError(null)
     try {
       await updateStaff.mutateAsync({ id: editTarget.id, command: values })
@@ -49,15 +52,15 @@ export function StaffPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Staff</h1>
-          <p className="page-subtitle">Manage your team members</p>
+          <p className="page-subtitle">{canManage ? 'Manage your team members' : 'View your team members · Read-only'}</p>
         </div>
-        <Button
+        {canManage && <Button
           id="create-staff-btn"
           icon={<Plus size={16} />}
           onClick={() => { setMutationError(null); setCreateOpen(true) }}
         >
           Add Staff
-        </Button>
+        </Button>}
       </div>
 
       {isLoading && <SkeletonTable rows={5} cols={4} />}
@@ -67,8 +70,8 @@ export function StaffPage() {
         <EmptyState
           icon={<span style={{ fontSize: 40 }}>👤</span>}
           title="No staff members yet"
-          description="Add your first team member to start managing their availability."
-          action={{ label: 'Add Staff', onClick: () => setCreateOpen(true) }}
+          description={canManage ? 'Add your first team member to start managing their availability.' : 'There are no team members to view.'}
+          action={canManage ? { label: 'Add Staff', onClick: () => setCreateOpen(true) } : undefined}
         />
       )}
 
@@ -98,14 +101,14 @@ export function StaffPage() {
                   <td><StatusBadge status={member.status} /></td>
                   <td>
                     <div className="table__actions">
-                      <button
+                      {canManage && <button
                         className="icon-btn"
                         aria-label={`Edit ${member.name}`}
                         id={`edit-staff-${member.id}`}
                         onClick={() => { setMutationError(null); setEditTarget(member) }}
                       >
                         <Edit2 size={15} />
-                      </button>
+                      </button>}
                       <Link to={`/staff/${member.id}`} className="icon-btn" aria-label={`View ${member.name}`}>
                         <ChevronRight size={15} />
                       </Link>
@@ -118,7 +121,7 @@ export function StaffPage() {
         </div>
       )}
 
-      <Modal isOpen={createOpen} onClose={() => setCreateOpen(false)} title="Add Staff Member" size="md">
+      <Modal isOpen={canManage && createOpen} onClose={() => setCreateOpen(false)} title="Add Staff Member" size="md">
         <StaffForm
           onSubmit={handleCreate}
           onCancel={() => setCreateOpen(false)}
@@ -127,7 +130,7 @@ export function StaffPage() {
         />
       </Modal>
 
-      <Modal isOpen={!!editTarget} onClose={() => setEditTarget(null)} title={`Edit — ${editTarget?.name}`} size="md">
+      <Modal isOpen={canManage && !!editTarget} onClose={() => setEditTarget(null)} title={`Edit — ${editTarget?.name}`} size="md">
         {editTarget && (
           <StaffForm
             defaultValues={{ name: editTarget.name, status: editTarget.status }}

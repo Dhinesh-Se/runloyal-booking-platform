@@ -1,32 +1,26 @@
 import { useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQueries, useQuery } from '@tanstack/react-query'
 import { listBookings } from '@/api/bookings'
 import { listAvailability } from '@/api/availability'
 import { useServices } from '@/features/services/useServices'
 import { useStaff } from '@/features/staff/useStaff'
+import { useMe } from '@/hooks/useMe'
+import { isValidScheduleTimeZone } from '@/utils/schedule'
+import { getAvailableSlots } from './availableSlots'
 import {
   getWeekStart,
   getWeekDays,
+  addUTCDays,
 } from '@/utils/dates'
-import type { BookingResponse, AvailabilityResponse, StaffResponse } from '@/api/types'
+import type { AvailableSlotResponse, AvailabilityResponse } from '@/api/types'
 
 export interface CalendarSlot {
   timeLabel: string // "09:00"
   minutes: number   // 540
 }
 
-export interface SlotCellData {
-  date: Date
-  isoDateStr: string // "YYYY-MM-DD"
-  timeStr: string    // "09:00"
-  isoStartInstant: string // "2026-09-15T09:00:00.000Z"
-  booking?: BookingResponse
-  availabilityType?: 'WORKING' | 'BREAK' | 'OFF'
-  staff?: StaffResponse
-  isAvailable: boolean
-  isBooked: boolean
-  isBreak: boolean
-  isOff: boolean
+export interface CalendarAvailableSlot extends AvailableSlotResponse {
+  serviceId: string
 }
 
 export function useCalendarData(
@@ -37,35 +31,27 @@ export function useCalendarData(
   const weekStart = useMemo(() => getWeekStart(currentDate), [currentDate])
   const weekDays = useMemo(() => getWeekDays(weekStart), [weekStart])
 
-  // Week range in ISO instants
-  const fromInstant = useMemo(() => {
-    const d = new Date(weekStart)
-    d.setUTCHours(0, 0, 0, 0)
-    return d.toISOString()
-  }, [weekStart])
+  // Half-open UTC week: Monday midnight through exclusive next Monday.
+  const fromInstant = weekStart.toISOString()
+  const toInstantStr = addUTCDays(weekStart, 7).toISOString()
 
-  const toInstantStr = useMemo(() => {
-    const d = new Date(weekDays[6])
-    d.setUTCHours(23, 59, 59, 999)
-    return d.toISOString()
-  }, [weekDays])
-
-  // Fetch Services & Staff
-  const { data: services, isLoading: servicesLoading } = useServices()
-  const { data: staffList, isLoading: staffLoading } = useStaff()
+  const serviceQuery = useServices()
+  const staffQuery = useStaff()
+  const meQuery = useMe()
+  const services = serviceQuery.data
+  const staffList = staffQuery.data
+  const timezone = meQuery.data?.timezone
+  const timezoneValid = isValidScheduleTimeZone(timezone)
+  const isAdmin = meQuery.data?.role === 'TENANT_ADMIN' && meQuery.data.status === 'ACTIVE'
 
   // Fetch Bookings for this week range
-  const {
-    data: bookings,
-    isLoading: bookingsLoading,
-    refetch: refetchBookings,
-  } = useQuery({
+  const bookingQuery = useQuery({
     queryKey: ['calendar', 'bookings', fromInstant, toInstantStr],
     queryFn: () => listBookings(fromInstant, toInstantStr),
     staleTime: 15_000,
   })
 
-  // Filter staff based on selected staff or service
+  // Assignment/qualification is decided by the slot endpoint, never local rules.
   const filteredStaff = useMemo(() => {
     if (!staffList) return []
     let list = staffList.filter((s) => s.status === 'ACTIVE')
@@ -75,21 +61,15 @@ export function useCalendarData(
     return list
   }, [staffList, selectedStaffId])
 
-  // Fetch availability for staff members
-  // If a single staff is selected, fetch for that staff; otherwise fetch for filtered staff
   const staffIds = useMemo(() => filteredStaff.map((s) => s.id), [filteredStaff])
 
-  const { data: staffAvailabilities, isLoading: availabilityLoading } = useQuery({
+  const availabilityQuery = useQuery({
     queryKey: ['calendar', 'availability', staffIds.join(',')],
     queryFn: async () => {
       const results: Record<string, AvailabilityResponse[]> = {}
       await Promise.all(
         staffIds.map(async (id) => {
-          try {
-            results[id] = await listAvailability(id)
-          } catch {
-            results[id] = []
-          }
+          results[id] = await listAvailability(id)
         })
       )
       return results
@@ -98,10 +78,42 @@ export function useCalendarData(
     staleTime: 60_000,
   })
 
-  // Generate 30-minute intervals from 08:00 to 19:00
+  const activeServices = services?.filter(service => service.status === 'ACTIVE'
+    && (!selectedServiceId || service.id === selectedServiceId)) ?? []
+  const slotQueries = useQueries({
+    queries: activeServices.map(service => {
+      // The endpoint only returns slots whose full duration fits before `to`.
+      // Pad the request so starts near UTC Sunday midnight are not clipped.
+      const slotsTo = new Date(Date.parse(toInstantStr) + service.durationMinutes * 60_000).toISOString()
+      return {
+        queryKey: ['calendar', 'available-slots', service.id, fromInstant, toInstantStr, slotsTo],
+        queryFn: () => getAvailableSlots(service.id, fromInstant, slotsTo),
+        enabled: staffIds.length > 0,
+        staleTime: 15_000,
+      }
+    }),
+  })
+
+  const queries = [serviceQuery, staffQuery, meQuery, bookingQuery,
+    ...(staffIds.length ? [availabilityQuery, ...slotQueries] : [])]
+  const timezoneError = meQuery.isSuccess && !timezoneValid
+  const isError = queries.some(query => query.isError) || timezoneError
+  const isLoading = queries.some(query => query.isLoading)
+  const isRefreshing = queries.some(query => query.isFetching && !query.isLoading)
+  // Fail closed even when React Query retains stale successful data after an error.
+  const availableSlots: CalendarAvailableSlot[] = isError || isLoading || isRefreshing ? [] :
+    slotQueries.flatMap((query, index) => (query.data ?? []).flatMap(slot => {
+      const start = Date.parse(slot.startAt)
+      if (start < Date.parse(fromInstant) || start >= Date.parse(toInstantStr)) return []
+      const availableStaff = slot.availableStaff.filter(staff =>
+        staff.status === 'ACTIVE' && staffIds.includes(staff.id))
+      return availableStaff.length ? [{ ...slot, availableStaff, serviceId: activeServices[index].id }] : []
+    }))
+
+  // Full 24-hour UTC grid, in half-hour cells (00:00 through 23:30).
   const timeSlots: CalendarSlot[] = useMemo(() => {
     const slots: CalendarSlot[] = []
-    for (let m = 8 * 60; m <= 19 * 60; m += 30) {
+    for (let m = 0; m < 24 * 60; m += 30) {
       const h = Math.floor(m / 60).toString().padStart(2, '0')
       const min = (m % 60).toString().padStart(2, '0')
       slots.push({
@@ -112,16 +124,15 @@ export function useCalendarData(
     return slots
   }, [])
 
-  // Filter bookings according to selected staff and service
+  // Keep other services' bookings visible: a service filter must not hide conflicts.
   const filteredBookings = useMemo(() => {
-    if (!bookings) return []
-    return bookings.filter((b) => {
+    if (!bookingQuery.data) return []
+    return bookingQuery.data.filter((b) => {
       if (b.status === 'CANCELLED') return false
       if (selectedStaffId && b.staffId !== selectedStaffId) return false
-      if (selectedServiceId && b.serviceId !== selectedServiceId) return false
       return true
     })
-  }, [bookings, selectedStaffId, selectedServiceId])
+  }, [bookingQuery.data, selectedStaffId])
 
   return {
     weekStart,
@@ -131,8 +142,17 @@ export function useCalendarData(
     staffList,
     filteredStaff,
     bookings: filteredBookings,
-    staffAvailabilities: staffAvailabilities || {},
-    isLoading: servicesLoading || staffLoading || bookingsLoading || availabilityLoading,
-    refetchBookings,
+    staffAvailabilities: availabilityQuery.data ?? {},
+    availableSlots,
+    timezone,
+    isAdmin,
+    isLoading,
+    isRefreshing,
+    isError,
+    errorMessage: timezoneError
+      ? 'The account timezone is missing or invalid. Calendar availability cannot be displayed safely.'
+      : 'Calendar data could not be loaded. Booking availability is disabled until all requests succeed.',
+    refetchBookings: bookingQuery.refetch,
+    retry: () => Promise.all(queries.map(query => query.refetch())),
   }
 }

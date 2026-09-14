@@ -34,6 +34,7 @@ public class ServiceCatalogService {
         service.name = command.name();
         service.description = command.description();
         service.category = command.category();
+        // Booking.endAt is a creation-time snapshot; catalog duration edits never resize history.
         service.durationMinutes = command.durationMinutes();
         service.price = command.price();
         service.status = command.status() == null ? Model.Status.ACTIVE : command.status();

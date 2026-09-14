@@ -1,37 +1,28 @@
-import React, { useEffect } from 'react'
-import { Auth0Provider, useAuth0 } from '@auth0/auth0-react'
+import React, { useCallback, useEffect, useState } from 'react'
+import type { OktaAuth } from '@okta/okta-auth-js'
+import { Security, useOktaAuth } from '@okta/okta-react'
 import { useNavigate } from 'react-router-dom'
 import { registerTokenGetter } from '@/api/client'
-
-const AUTH0_DOMAIN = import.meta.env.VITE_AUTH0_DOMAIN as string
-const AUTH0_CLIENT_ID = import.meta.env.VITE_AUTH0_CLIENT_ID as string
-const AUTH0_AUDIENCE = import.meta.env.VITE_AUTH0_AUDIENCE as string
-const AUTH0_REDIRECT_URI =
-  (import.meta.env.VITE_AUTH0_REDIRECT_URI as string) || `${window.location.origin}/`
-const AUTH0_LOGOUT_URI =
-  (import.meta.env.VITE_AUTH0_LOGOUT_URI as string) || `${window.location.origin}/`
-
-if (!AUTH0_DOMAIN || !AUTH0_CLIENT_ID || !AUTH0_AUDIENCE) {
-  console.error(
-    '[RunLoyal] Missing Auth0 configuration. ' +
-      'Set VITE_AUTH0_DOMAIN, VITE_AUTH0_CLIENT_ID, and VITE_AUTH0_AUDIENCE in your .env file.'
-  )
-}
+import { readAuthConfig, safeReturnTo } from './config'
+import { getOktaClient } from './okta'
+import { completeSignIn, forgetLogoutTokens, getAuthSession, isTokenAccessBlocked } from './session'
 
 function TokenBridge({ children }: Readonly<{ children: React.ReactNode }>) {
-  const { getAccessTokenSilently } = useAuth0()
+  const { oktaAuth } = useOktaAuth()
 
   useEffect(() => {
-    registerTokenGetter(async () => {
+    let mounted = true
+    const unregister = registerTokenGetter(async () => {
+      if (!mounted || isTokenAccessBlocked()) return null
       try {
-        return await getAccessTokenSilently({
-          authorizationParams: { audience: AUTH0_AUDIENCE },
-        })
+        const token = await oktaAuth.getOrRenewAccessToken()
+        return !mounted || isTokenAccessBlocked() ? null : token
       } catch {
         return null
       }
     })
-  }, [getAccessTokenSilently])
+    return () => { mounted = false; unregister() }
+  }, [oktaAuth])
 
   return <>{children}</>
 }
@@ -42,24 +33,42 @@ interface AuthProviderProps {
 
 export function AuthProvider({ children }: Readonly<AuthProviderProps>) {
   const navigate = useNavigate()
+  const [setup] = useState(() => {
+    try {
+      const config = readAuthConfig()
+      try {
+        return { client: getOktaClient(config), error: null }
+      } catch {
+        return { client: null, error: 'Okta could not initialize. Check the SPA configuration and allow browser session storage.' }
+      }
+    } catch (error) {
+      return { client: null, error: error instanceof Error ? error.message : 'Check the Okta SPA configuration and browser session storage.' }
+    }
+  })
+  const restoreOriginalUri = useCallback(async (client: OktaAuth, originalUri?: string) => {
+    // Auth JS calls this only after parsing, verifying and storing callback tokens.
+    // Merely seeing stale SDK authentication must never release the app logout gate.
+    if (!client.authStateManager.getAuthState()?.isAuthenticated || getAuthSession().isLoggingOut) {
+      throw new Error('Sign-in was not completed.')
+    }
+    forgetLogoutTokens(client)
+    completeSignIn()
+    navigate(safeReturnTo(originalUri), { replace: true })
+  }, [navigate])
+
+  if (!setup.client) {
+    return (
+      <div className="auth-loading" role="alert">
+        <h1>Authentication configuration required</h1>
+        <p>{setup.error}</p>
+      </div>
+    )
+  }
 
   return (
-    <Auth0Provider
-      domain={AUTH0_DOMAIN}
-      clientId={AUTH0_CLIENT_ID}
-      cacheLocation="localstorage"
-      authorizationParams={{
-        redirect_uri: AUTH0_REDIRECT_URI,
-        audience: AUTH0_AUDIENCE,
-        scope: 'openid profile email',
-      }}
-      onRedirectCallback={(appState) => {
-        navigate(appState?.returnTo || '/calendar', { replace: true })
-      }}
-    >
+    <Security oktaAuth={setup.client} restoreOriginalUri={restoreOriginalUri}>
       <TokenBridge>{children}</TokenBridge>
-    </Auth0Provider>
+    </Security>
   )
 }
 
-export { AUTH0_LOGOUT_URI }

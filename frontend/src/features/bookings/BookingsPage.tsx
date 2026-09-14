@@ -1,6 +1,8 @@
 import { useState, useMemo } from 'react'
 import { Plus, Search, Calendar, Filter, Eye } from 'lucide-react'
 import { useBookings } from './useBookings'
+import { useCanManageBookings } from './useBookingPermissions'
+import { bookingStartInstant } from './bookingForm'
 import { useServices } from '@/features/services/useServices'
 import { useStaff } from '@/features/staff/useStaff'
 import { BookingModal } from './BookingModal'
@@ -14,22 +16,23 @@ import { extractErrorMessage } from '@/utils/errors'
 import type { BookingStatus } from '@/api/types'
 
 export function BookingsPage() {
-  // Default range: 30 days before today to 60 days after today
-  const [fromDate, setFromDate] = useState(() => {
-    const d = new Date()
-    d.setDate(d.getDate() - 30)
-    return d.toISOString().substring(0, 10)
-  })
+  const canManageBookings = useCanManageBookings()
+  // Today through today + 30 days, inclusive (the API permits at most 31 days).
+  const [fromDate, setFromDate] = useState(() => new Date().toISOString().substring(0, 10))
   const [toDate, setToDate] = useState(() => {
-    const d = new Date()
-    d.setDate(d.getDate() + 60)
+    const d = new Date(`${fromDate}T00:00:00Z`)
+    d.setUTCDate(d.getUTCDate() + 30)
     return d.toISOString().substring(0, 10)
   })
 
-  const fromInstant = `${fromDate}T00:00:00Z`
-  const toInstant = `${toDate}T23:59:59Z`
+  const fromInstant = bookingStartInstant(fromDate, '00:00')
+  const lastDayStart = bookingStartInstant(toDate, '00:00')
+  // The selected final date is inclusive; API intervals are half-open.
+  const toInstant = lastDayStart ? new Date(Date.parse(lastDayStart) + 86_400_000).toISOString() : null
+  const validRange = !!fromInstant && !!toInstant && fromDate <= toDate &&
+    Date.parse(toInstant) - Date.parse(fromInstant) <= 31 * 86_400_000
 
-  const { data: bookings, isLoading, isError, error } = useBookings(fromInstant, toInstant)
+  const { data: bookings, isLoading, isError, error } = useBookings(fromInstant ?? '', toInstant ?? '', { enabled: validRange })
   const { data: services } = useServices()
   const { data: staffList } = useStaff()
 
@@ -78,14 +81,16 @@ export function BookingsPage() {
           <h1 className="page-title">Bookings</h1>
           <p className="page-subtitle">View, search, and manage all customer appointments</p>
         </div>
-        <Button
-          id="new-booking-btn"
-          variant="primary"
-          icon={<Plus size={16} />}
-          onClick={() => setIsNewBookingOpen(true)}
-        >
-          New Booking
-        </Button>
+        {canManageBookings && (
+          <Button
+            id="new-booking-btn"
+            variant="primary"
+            icon={<Plus size={16} />}
+            onClick={() => setIsNewBookingOpen(true)}
+          >
+            New Booking
+          </Button>
+        )}
       </div>
 
       {/* Filter and search bar */}
@@ -142,6 +147,8 @@ export function BookingsPage() {
           <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>From:</span>
           <input
             type="date"
+            aria-label="Bookings from date (UTC)"
+            aria-describedby="booking-range-hint"
             className="form__input"
             style={{ width: 'auto' }}
             value={fromDate}
@@ -150,16 +157,21 @@ export function BookingsPage() {
           <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>To:</span>
           <input
             type="date"
+            aria-label="Bookings to date (UTC)"
+            aria-describedby="booking-range-hint"
             className="form__input"
             style={{ width: 'auto' }}
             value={toDate}
             onChange={(e) => setToDate(e.target.value)}
           />
         </div>
+        <span id="booking-range-hint" className="form__hint">Maximum 31 days, including both dates.</span>
       </div>
 
       {/* Bookings List / Table */}
-      {isLoading ? (
+      {!validRange ? (
+        <p role="alert" className="form__error">Enter valid dates with the end date on or after the start date and a maximum of 31 days, including both dates.</p>
+      ) : isLoading ? (
         <SkeletonTable rows={6} cols={6} />
       ) : isError ? (
         <ErrorState message={extractErrorMessage(error)} />
@@ -172,10 +184,10 @@ export function BookingsPage() {
               ? 'No bookings match your filter criteria.'
               : 'There are no bookings recorded in this date range.'
           }
-          action={{
+          action={canManageBookings ? {
             label: 'Create First Booking',
             onClick: () => setIsNewBookingOpen(true),
-          }}
+          } : undefined}
         />
       ) : (
         <div className="table-container">
@@ -230,7 +242,7 @@ export function BookingsPage() {
 
       {/* Create Booking Modal */}
       <BookingModal
-        isOpen={isNewBookingOpen}
+        isOpen={isNewBookingOpen && canManageBookings}
         onClose={() => setIsNewBookingOpen(false)}
       />
 

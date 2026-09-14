@@ -5,7 +5,6 @@ import {
   Plus,
   Filter,
 } from 'lucide-react'
-import { addDays } from 'date-fns'
 import { useCalendarData } from './useCalendar'
 import { WeekView } from './WeekView'
 import { DayView } from './DayView'
@@ -14,10 +13,10 @@ import { BookingModal } from '@/features/bookings/BookingModal'
 import { BookingDetail } from '@/features/bookings/BookingDetail'
 import { Button } from '@/components/ui/Button'
 import { SkeletonCard } from '@/components/ui/Skeleton'
-import { formatWeekRange, formatInstantDate } from '@/utils/dates'
+import { addUTCDays, startOfUTCDay, formatWeekRange, formatInstantDate } from '@/utils/dates'
 
 export function CalendarPage() {
-  const [currentDate, setCurrentDate] = useState<Date>(() => new Date())
+  const [currentDate, setCurrentDate] = useState<Date>(() => startOfUTCDay(new Date()))
   const [viewMode, setViewMode] = useState<'week' | 'day'>('week')
   const [selectedServiceId, setSelectedServiceId] = useState<string>('')
   const [selectedStaffId, setSelectedStaffId] = useState<string>('')
@@ -39,32 +38,41 @@ export function CalendarPage() {
     staffList,
     bookings,
     staffAvailabilities,
+    availableSlots,
+    timezone,
+    isAdmin,
     isLoading,
+    isRefreshing,
+    isError,
+    errorMessage,
+    retry,
   } = useCalendarData(currentDate, selectedServiceId, selectedStaffId)
 
   // Navigation handlers
   const handlePrev = () => {
-    setCurrentDate((prev) => addDays(prev, viewMode === 'week' ? -7 : -1))
+    setCurrentDate((prev) => addUTCDays(prev, viewMode === 'week' ? -7 : -1))
   }
 
   const handleNext = () => {
-    setCurrentDate((prev) => addDays(prev, viewMode === 'week' ? 7 : 1))
+    setCurrentDate((prev) => addUTCDays(prev, viewMode === 'week' ? 7 : 1))
   }
 
   const handleToday = () => {
-    setCurrentDate(new Date())
+    setCurrentDate(startOfUTCDay(new Date()))
   }
 
-  const handleSelectSlot = (startAtInstant: string, staffId?: string) => {
+  const handleSelectSlot = (startAtInstant: string, staffId?: string, serviceId?: string) => {
+    if (!isAdmin || isLoading || isRefreshing || isError) return
     setSlotPrefill({
       startAt: startAtInstant,
-      serviceId: selectedServiceId || undefined,
+      serviceId: serviceId || selectedServiceId || undefined,
       staffId: staffId || selectedStaffId || undefined,
     })
     setIsBookingModalOpen(true)
   }
 
   const handleOpenNewBooking = () => {
+    if (!isAdmin || isError) return
     setSlotPrefill({
       serviceId: selectedServiceId || undefined,
       staffId: selectedStaffId || undefined,
@@ -85,15 +93,22 @@ export function CalendarPage() {
         <div>
           <h1 className="page-title">Services Calendar</h1>
           <p className="page-subtitle">Schedule, staff availability, and bookings management</p>
+          <p className="page-subtitle">
+            <strong>All grid times and navigation are UTC (00:00–24:00).</strong>
+            {' '}Break/Off annotations use {timezone || 'the account timezone'}.
+            {' '}Service filters apply to available starts; other-service bookings remain visible.
+            {!isAdmin && ' Read-only calendar.'}
+          </p>
         </div>
-        <Button
+        {isAdmin && <Button
           id="calendar-new-booking-btn"
           variant="primary"
+          disabled={isError}
           icon={<Plus size={16} />}
           onClick={handleOpenNewBooking}
         >
           New Booking
-        </Button>
+        </Button>}
       </div>
 
       {/* Control Bar: Navigation, View Toggle & Filters */}
@@ -210,13 +225,14 @@ export function CalendarPage() {
               <Filter size={14} style={{ color: 'var(--text-muted)' }} />
               <select
                 id="calendar-service-filter"
+                aria-label="Filter by service"
                 className="form__select"
                 style={{ width: 'auto', minWidth: 160 }}
                 value={selectedServiceId}
                 onChange={(e) => setSelectedServiceId(e.target.value)}
               >
                 <option value="">All Services</option>
-                {services?.map((s) => (
+                {services?.filter((s) => s.status === 'ACTIVE').map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
                   </option>
@@ -226,6 +242,7 @@ export function CalendarPage() {
 
             <select
               id="calendar-staff-filter"
+              aria-label="Filter by staff"
               className="form__select"
               style={{ width: 'auto', minWidth: 160 }}
               value={selectedStaffId}
@@ -248,20 +265,31 @@ export function CalendarPage() {
       </div>
 
       {/* Calendar Grid View */}
-      {isLoading ? (
-        <SkeletonCard lines={8} />
+      {isError ? (
+        <div role="alert" className="card" style={{ padding: 'var(--space-4)' }}>
+          <p>{errorMessage}</p>
+          <Button variant="secondary" onClick={() => void retry()}>Retry calendar</Button>
+        </div>
+      ) : isLoading ? (
+        <div role="status" aria-label="Loading calendar">
+          <span>Loading calendar…</span>
+          <SkeletonCard lines={8} />
+        </div>
       ) : viewMode === 'week' ? (
         <WeekView
           weekDays={weekDays}
           timeSlots={timeSlots}
           bookings={bookings}
           staffAvailabilities={staffAvailabilities}
+          availableSlots={availableSlots}
+          timezone={timezone}
+          canBook={isAdmin && !isRefreshing}
           staffList={staffList}
           services={services}
           selectedStaffId={selectedStaffId}
           selectedServiceId={selectedServiceId}
           onSelectSlot={handleSelectSlot}
-          onSelectBooking={(bId) => setSelectedBookingId(bId)}
+          onSelectBooking={setSelectedBookingId}
         />
       ) : (
         <DayView
@@ -269,25 +297,29 @@ export function CalendarPage() {
           timeSlots={timeSlots}
           bookings={bookings}
           staffAvailabilities={staffAvailabilities}
+          availableSlots={availableSlots}
+          timezone={timezone}
+          canBook={isAdmin && !isRefreshing}
           staffList={staffList}
           services={services}
           selectedStaffId={selectedStaffId}
           selectedServiceId={selectedServiceId}
           onSelectSlot={handleSelectSlot}
-          onSelectBooking={(bId) => setSelectedBookingId(bId)}
+          onSelectBooking={setSelectedBookingId}
         />
       )}
+      {!isError && isRefreshing && <p role="status">Refreshing calendar availability…</p>}
 
       {/* Booking Create Modal */}
-      <BookingModal
+      {isAdmin && !isError && <BookingModal
         isOpen={isBookingModalOpen}
         onClose={() => setIsBookingModalOpen(false)}
         initialServiceId={slotPrefill.serviceId}
         initialStaffId={slotPrefill.staffId}
         initialStartAt={slotPrefill.startAt}
-      />
+      />}
 
-      {/* Booking Detail Modal */}
+      {/* Viewing is allowed for STAFF; BookingDetail independently guards cancellation. */}
       <BookingDetail
         bookingId={selectedBookingId}
         isOpen={!!selectedBookingId}

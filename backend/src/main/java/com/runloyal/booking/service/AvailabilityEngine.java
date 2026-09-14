@@ -5,7 +5,11 @@ import java.time.*;
 import java.util.*;
 
 /**
- * Evaluates instants as tenant-local calendar times; slots are generated at 30-minute boundaries.
+ * Recurring schedules are same-day tenant-local windows (overnight rules are not supported).
+ * Duration is elapsed time, not wall-clock time. All containment/overlap checks use instants.
+ * On a repeated hour a window starts at the earlier offset and ends at the later offset;
+ * a boundary in a gap is shifted forward by the zone's gap duration. Thus a BREAK/OFF
+ * window conservatively blocks both occurrences of a repeated local time.
  */
 public class AvailabilityEngine {
   public boolean eligible(
@@ -16,37 +20,44 @@ public class AvailabilityEngine {
       List<Booking> bookings,
       Instant start,
       ZoneId zone) {
-    if (staff.status != Model.Status.ACTIVE || service.status != Model.Status.ACTIVE || !assigned)
+    if (staff.status != Model.Status.ACTIVE || service.status != Model.Status.ACTIVE || !assigned
+        || service.durationMinutes <= 0 || !Objects.equals(staff.tenantId, service.tenantId))
       return false;
     Instant end = start.plus(Duration.ofMinutes(service.durationMinutes));
-    LocalDateTime local = LocalDateTime.ofInstant(start, zone),
-        localEnd = LocalDateTime.ofInstant(end, zone);
-    if (!local.toLocalDate().equals(localEnd.toLocalDate())) return false;
+    LocalDate date = start.atZone(zone).toLocalDate();
+    if (!date.equals(end.atZone(zone).toLocalDate())) return false;
+    var windows = rules.stream()
+        .filter(r -> Objects.equals(r.tenantId, staff.tenantId)
+            && Objects.equals(r.staffId, staff.id) && r.dayOfWeek == date.getDayOfWeek())
+        .filter(r -> r.startTime.isBefore(r.endTime))
+        .map(r -> new Window(r.type, boundary(date.atTime(r.startTime), zone, true),
+            boundary(date.atTime(r.endTime), zone, false)))
+        .filter(w -> w.start.isBefore(w.end))
+        .toList();
     var work =
-        rules.stream()
-            .filter(
-                r ->
-                    r.dayOfWeek == local.getDayOfWeek() && r.type == Model.AvailabilityType.WORKING)
-            .anyMatch(
-                r ->
-                    !local.toLocalTime().isBefore(r.startTime)
-                        && !localEnd.toLocalTime().isAfter(r.endTime));
+        windows.stream()
+            .filter(w -> w.type == Model.AvailabilityType.WORKING)
+            .anyMatch(w -> !start.isBefore(w.start) && !end.isAfter(w.end));
     boolean breakHit =
-        rules.stream()
-            .filter(
-                r ->
-                    r.dayOfWeek == local.getDayOfWeek() && r.type != Model.AvailabilityType.WORKING)
-            .anyMatch(
-                r ->
-                    local.toLocalTime().isBefore(r.endTime)
-                        && localEnd.toLocalTime().isAfter(r.startTime));
+        windows.stream()
+            .filter(w -> w.type != Model.AvailabilityType.WORKING)
+            .anyMatch(w -> start.isBefore(w.end) && end.isAfter(w.start));
     boolean booked =
         bookings.stream()
             .anyMatch(
                 b ->
-                    b.status == Model.BookingStatus.CONFIRMED
+                    Objects.equals(b.tenantId, staff.tenantId)
+                        && Objects.equals(b.staffId, staff.id)
+                        && b.status == Model.BookingStatus.CONFIRMED
                         && start.isBefore(b.endAt)
                         && end.isAfter(b.startAt));
     return work && !breakHit && !booked;
   }
+
+    private static Instant boundary(LocalDateTime local, ZoneId zone, boolean start) {
+        var zoned = local.atZone(zone); // ZoneRules shift nonexistent local times forward across gaps.
+        return (start ? zoned.withEarlierOffsetAtOverlap() : zoned.withLaterOffsetAtOverlap()).toInstant();
+    }
+
+    private record Window(Model.AvailabilityType type, Instant start, Instant end) {}
 }

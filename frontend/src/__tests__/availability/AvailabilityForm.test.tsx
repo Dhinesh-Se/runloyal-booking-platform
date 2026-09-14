@@ -18,7 +18,7 @@ describe('AvailabilityForm', () => {
     expect(screen.getByLabelText(/End Time/i)).toBeInTheDocument()
   })
 
-  it('hides start and end time fields when type is OFF', async () => {
+  it('keeps the actual OFF interval editable rather than inventing an all-day closure', async () => {
     const user = userEvent.setup()
 
     render(
@@ -31,9 +31,9 @@ describe('AvailabilityForm', () => {
     const typeSelect = screen.getByLabelText(/Type/i)
     await user.selectOptions(typeSelect, 'OFF')
 
-    expect(screen.queryByLabelText(/Start Time/i)).not.toBeInTheDocument()
-    expect(screen.queryByLabelText(/End Time/i)).not.toBeInTheDocument()
-    expect(screen.getByText(/OFF marks this day as not available/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/Start Time/i)).toHaveValue('09:00')
+    expect(screen.getByLabelText(/End Time/i)).toHaveValue('17:00')
+    expect(screen.getByText(/OFF blocks only the specified local time range/i)).toBeInTheDocument()
   })
 
   it('validates that end time must be after start time', async () => {
@@ -64,6 +64,16 @@ describe('AvailabilityForm', () => {
     })
 
     expect(handleSubmit).not.toHaveBeenCalled()
+  })
+
+  it('submits the selected partial OFF interval without replacing it with a whole day', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    render(<AvailabilityForm defaultValues={{ type: 'OFF', startTime: '13:00', endTime: '14:00' }}
+      onSubmit={onSubmit} onCancel={vi.fn()} />)
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledWith({
+      dayOfWeek: 'MONDAY', type: 'OFF', startTime: '13:00', endTime: '14:00',
+    }))
   })
 
   it('submits valid availability schedule', async () => {

@@ -110,7 +110,7 @@ describe('Calendar WeekView', () => {
     expect(handleSelectBooking).toHaveBeenCalledWith('book-1')
   })
 
-  it('renders available slot when staff is working and no booking occupies slot', async () => {
+  it('renders only starts explicitly returned by backend eligibility', async () => {
     const handleSelectSlot = vi.fn()
     const user = userEvent.setup()
 
@@ -119,6 +119,11 @@ describe('Calendar WeekView', () => {
         weekDays={weekDays}
         timeSlots={timeSlots}
         bookings={mockBookings} // has booking at 09:00-09:30
+        availableSlots={[{
+          serviceId: 'svc-1', startAt: '2026-09-14T09:30:00.000Z',
+          endAt: '2026-09-14T10:00:00.000Z', availableStaff: mockStaff,
+        }]}
+        canBook
         staffAvailabilities={mockAvailabilities}
         staffList={mockStaff}
         services={mockServices}
@@ -127,11 +132,11 @@ describe('Calendar WeekView', () => {
       />
     )
 
-    // 09:30 and 10:00 on Monday are working hours without bookings -> available
+    // 10:00 is also inside WORKING, but no backend slot means it is not available.
     const availableBlocks = screen.getAllByText('Available')
-    expect(availableBlocks.length).toBeGreaterThan(0)
+    expect(availableBlocks).toHaveLength(1)
 
     await user.click(availableBlocks[0])
-    expect(handleSelectSlot).toHaveBeenCalled()
+    expect(handleSelectSlot).toHaveBeenCalledWith('2026-09-14T09:30:00.000Z', 'staff-1', 'svc-1')
   })
 })

@@ -1,4 +1,3 @@
-import { Plus } from 'lucide-react'
 import type { BookingResponse } from '@/api/types'
 
 export type BlockType = 'AVAILABLE' | 'BOOKED' | 'BREAK' | 'OFF' | 'EMPTY'
@@ -62,8 +61,8 @@ export function CalendarBlock({
 
   return (
     <div
-      role="button"
-      tabIndex={onClick ? 0 : -1}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
       onClick={onClick}
       onKeyDown={(e) => {
         if (onClick && (e.key === 'Enter' || e.key === ' ')) {
@@ -73,6 +72,7 @@ export function CalendarBlock({
       }}
       style={{
         ...styles,
+        cursor: onClick ? 'pointer' : 'default',
         borderRadius: 'var(--radius-sm)',
         padding: '3px 6px',
         fontSize: 'var(--font-size-xs)',
@@ -90,20 +90,7 @@ export function CalendarBlock({
       className="calendar-block"
       title={title ? `${title}${subtitle ? ` - ${subtitle}` : ''}` : undefined}
     >
-      {type === 'EMPTY' ? (
-        <div
-          className="calendar-block-empty-hover"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            height: '100%',
-            opacity: 0.4,
-          }}
-        >
-          <Plus size={12} />
-        </div>
-      ) : (
+      {type !== 'EMPTY' && (
         <>
           <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {title}

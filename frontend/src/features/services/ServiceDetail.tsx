@@ -10,13 +10,15 @@ import { StatusBadge } from '@/components/ui/Badge'
 import { SkeletonCard } from '@/components/ui/Skeleton'
 import { ErrorState } from '@/components/ui/EmptyState'
 import { extractErrorMessage } from '@/utils/errors'
-import { useAssignments } from '@/features/staff/useStaff'
+import { ServiceAssignments } from './ServiceAssignments'
+import { ServiceUpcoming } from './ServiceUpcoming'
+import { useServicePermissions } from './useServicePermissions'
 
 export function ServiceDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { data: services, isLoading, isError, error } = useServices()
-  const { assignments, isLoading: assignLoading } = useAssignments(id ?? '')
+  const { isAdmin } = useServicePermissions()
+  const { data: services, isLoading, isError, error, refetch } = useServices()
   const updateService = useUpdateService()
   const [editOpen, setEditOpen] = useState(false)
   const [mutationError, setMutationError] = useState<unknown>(null)
@@ -24,7 +26,7 @@ export function ServiceDetail() {
   const service = services?.find((s) => s.id === id)
 
   if (isLoading) return <div className="page"><SkeletonCard lines={4} /></div>
-  if (isError) return <div className="page"><ErrorState message={extractErrorMessage(error)} /></div>
+  if (isError) return <div className="page"><ErrorState message={extractErrorMessage(error)} onRetry={() => refetch()} /></div>
   if (!service) return (
     <div className="page">
       <ErrorState title="Service not found" message="This service does not exist or was deleted." />
@@ -35,6 +37,7 @@ export function ServiceDetail() {
   )
 
   const handleEdit = async (values: ServiceFormValues) => {
+    if (!isAdmin) return
     setMutationError(null)
     try {
       await updateService.mutateAsync({ id: service.id, command: { ...values, price: Number(values.price) } })
@@ -57,16 +60,17 @@ export function ServiceDetail() {
             <p className="page-subtitle">{service.category}</p>
           </div>
         </div>
-        <Button
+        {isAdmin && <Button
           id="edit-service-detail-btn"
           variant="secondary"
           icon={<Edit2 size={15} />}
           onClick={() => { setMutationError(null); setEditOpen(true) }}
         >
           Edit Service
-        </Button>
+        </Button>}
       </div>
 
+      {!isAdmin && <p className="text-muted">Read-only: only tenant administrators can edit services and staff assignments.</p>}
       <div className="detail-grid">
         <div className="card">
           <h2 className="card-section-title">Details</h2>
@@ -96,33 +100,12 @@ export function ServiceDetail() {
           </dl>
         </div>
 
-        <div className="card">
-          <h2 className="card-section-title">Assigned Staff</h2>
-          {assignLoading ? (
-            <SkeletonCard lines={2} />
-          ) : assignments.length === 0 ? (
-            <p className="text-muted" style={{ fontSize: 'var(--font-size-sm)' }}>
-              No staff assigned to this service yet.
-            </p>
-          ) : (
-            <ul className="staff-chip-list">
-              {assignments.map((staff) => (
-                <li key={staff.id}>
-                  <Link to={`/staff/${staff.id}`} className="staff-chip">
-                    <span className="staff-chip__avatar" aria-hidden="true">
-                      {staff.name.charAt(0).toUpperCase()}
-                    </span>
-                    {staff.name}
-                    <StatusBadge status={staff.status} />
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        <ServiceAssignments key={service.id} serviceId={service.id} />
       </div>
 
-      <Modal isOpen={editOpen} onClose={() => setEditOpen(false)} title={`Edit — ${service.name}`} size="lg">
+      <ServiceUpcoming key={service.id} service={service} />
+
+      {isAdmin && <Modal isOpen={editOpen} onClose={() => setEditOpen(false)} title={`Edit — ${service.name}`} size="lg">
         <ServiceForm
           defaultValues={serviceResponseToFormValues(service)}
           onSubmit={handleEdit}
@@ -130,7 +113,7 @@ export function ServiceDetail() {
           submitLabel="Save Changes"
           serverError={mutationError}
         />
-      </Modal>
+      </Modal>}
     </div>
   )
 }

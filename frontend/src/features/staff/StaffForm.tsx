@@ -2,7 +2,8 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Button } from '@/components/ui/Button'
-import { extractFieldErrors } from '@/utils/errors'
+import { extractErrorMessage, extractFieldErrors } from '@/utils/errors'
+import { useStaffPermissions } from './useStaffPermissions'
 
 const schema = z.object({
   name: z.string().min(1, 'Name is required').max(120),
@@ -20,6 +21,7 @@ interface StaffFormProps {
 }
 
 export function StaffForm({ defaultValues, onSubmit, onCancel, submitLabel = 'Save', serverError }: StaffFormProps) {
+  const { canManage } = useStaffPermissions()
   const fieldErrors = extractFieldErrors(serverError)
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<StaffFormValues>({
@@ -28,7 +30,9 @@ export function StaffForm({ defaultValues, onSubmit, onCancel, submitLabel = 'Sa
   })
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} noValidate className="form" id="staff-form">
+    <form onSubmit={handleSubmit(async values => { if (canManage) await onSubmit(values) })} noValidate className="form" id="staff-form">
+      {!canManage && <p role="status">Staff details are read-only.</p>}
+      {serverError != null && <p role="alert">{extractErrorMessage(serverError)}</p>}
       <div className="form__field">
         <label className="form__label" htmlFor="staff-name">
           Full Name <span aria-hidden="true" className="form__required">*</span>
@@ -37,6 +41,7 @@ export function StaffForm({ defaultValues, onSubmit, onCancel, submitLabel = 'Sa
           id="staff-name"
           className={`form__input ${errors.name ? 'form__input--error' : ''}`}
           placeholder="e.g. Jane Smith"
+          disabled={!canManage || isSubmitting}
           {...register('name')}
         />
         {errors.name && <span className="form__error" role="alert">{errors.name.message}</span>}
@@ -45,7 +50,7 @@ export function StaffForm({ defaultValues, onSubmit, onCancel, submitLabel = 'Sa
 
       <div className="form__field">
         <label className="form__label" htmlFor="staff-status">Status</label>
-        <select id="staff-status" className="form__select" {...register('status')}>
+        <select id="staff-status" className="form__select" disabled={!canManage || isSubmitting} {...register('status')}>
           <option value="ACTIVE">Active</option>
           <option value="INACTIVE">Inactive</option>
         </select>
@@ -53,7 +58,7 @@ export function StaffForm({ defaultValues, onSubmit, onCancel, submitLabel = 'Sa
 
       <div className="form__actions">
         <Button type="button" variant="ghost" onClick={onCancel} disabled={isSubmitting}>Cancel</Button>
-        <Button type="submit" variant="primary" loading={isSubmitting}>{submitLabel}</Button>
+        <Button type="submit" variant="primary" loading={isSubmitting} disabled={!canManage}>{submitLabel}</Button>
       </div>
     </form>
   )

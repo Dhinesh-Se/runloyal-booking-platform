@@ -25,8 +25,8 @@ services:
       DB_URL: jdbc:mysql://mysql:3306/runloyal
       DB_USER: runloyal
       DB_PASSWORD: runloyal
-      AUTH0_ISSUER_URI: ${AUTH0_ISSUER_URI}
-      AUTH0_AUDIENCE: ${AUTH0_AUDIENCE:-https://runloyal-booking-api}
+      OKTA_ISSUER_URI: ${OKTA_ISSUER_URI:?Set OKTA_ISSUER_URI to your Okta custom authorization server issuer}
+      OKTA_AUDIENCE: ${OKTA_AUDIENCE:?Set OKTA_AUDIENCE to your Okta API audience}
     ports:
       - "8080:8080"
     depends_on:

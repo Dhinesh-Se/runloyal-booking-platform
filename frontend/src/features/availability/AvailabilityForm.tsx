@@ -2,7 +2,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Button } from '@/components/ui/Button'
-import { extractFieldErrors } from '@/utils/errors'
+import { extractErrorMessage, extractFieldErrors } from '@/utils/errors'
 import type { AvailabilityResponse, DayOfWeek } from '@/api/types'
 
 const DAYS: { value: DayOfWeek; label: string }[] = [
@@ -84,12 +84,11 @@ export function AvailabilityForm({
           <select id="av-type" className={`form__select form__select--type-${selectedType.toLowerCase()}`} {...register('type')}>
             <option value="WORKING">Working</option>
             <option value="BREAK">Break / Unavailable</option>
-            <option value="OFF">Off (Day off)</option>
+            <option value="OFF">Off (Unavailable period)</option>
           </select>
         </div>
       </div>
 
-      {selectedType !== 'OFF' && (
         <div className="form__row">
           <div className="form__field">
             <label className="form__label" htmlFor="av-start">
@@ -119,13 +118,14 @@ export function AvailabilityForm({
             {fieldErrors.endTime && <span className="form__error" role="alert">{fieldErrors.endTime}</span>}
           </div>
         </div>
-      )}
 
       {selectedType === 'OFF' && (
         <p className="form__hint">
-          OFF marks this day as not available. No time range needed.
+          OFF blocks only the specified local time range, not the entire day.
         </p>
       )}
+
+      {serverError != null && <p className="form__error" role="alert">{extractErrorMessage(serverError)}</p>}
 
       <div className="form__actions">
         <Button type="button" variant="ghost" onClick={onCancel} disabled={isSubmitting}>Cancel</Button>

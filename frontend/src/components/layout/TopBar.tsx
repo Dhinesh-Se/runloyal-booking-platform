@@ -2,11 +2,24 @@ import { LogOut, User, ChevronDown } from 'lucide-react'
 import { useState } from 'react'
 import { useAuth } from '@/auth/useAuth'
 import { useMe } from '@/hooks/useMe'
+import { SIGN_OUT_ERROR } from '@/auth/session'
 
 export function TopBar() {
-  const { user, logout } = useAuth()
+  const { user, logout, isLoggingOut } = useAuth()
   const { data: me } = useMe()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [logoutError, setLogoutError] = useState<string | null>(null)
+
+  const handleLogout = async () => {
+    setMenuOpen(false)
+    setLogoutError(null)
+    try {
+      await logout()
+    } catch {
+      // ProtectedRoute also displays the shared error after this bar unmounts.
+      setLogoutError(SIGN_OUT_ERROR)
+    }
+  }
 
   const displayName = user.name || user.email || 'User'
   const tenantShort = me?.tenantName
@@ -15,6 +28,7 @@ export function TopBar() {
 
   return (
     <header className="topbar" role="banner">
+      {logoutError && <p role="alert">{logoutError}</p>}
       <div className="topbar__left">
         <div className="topbar__tenant" aria-label={`Current tenant: ${tenantShort}`}>
           <span className="topbar__tenant-dot" aria-hidden="true" />
@@ -28,7 +42,9 @@ export function TopBar() {
       </div>
 
       <div className="topbar__right">
-        <div className="topbar__user" onBlur={() => setMenuOpen(false)}>
+        <div className="topbar__user" onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget)) setMenuOpen(false)
+        }}>
           <button
             className="topbar__user-btn"
             onClick={() => setMenuOpen((v) => !v)}
@@ -57,11 +73,12 @@ export function TopBar() {
               <button
                 className="topbar__dropdown-item topbar__dropdown-item--danger"
                 role="menuitem"
-                onClick={() => { setMenuOpen(false); void logout() }}
+                onClick={() => { void handleLogout() }}
+                disabled={isLoggingOut}
                 id="topbar-logout-btn"
               >
                 <LogOut size={14} aria-hidden="true" />
-                Sign out
+                {isLoggingOut ? 'Signing out…' : 'Sign out'}
               </button>
             </div>
           )}

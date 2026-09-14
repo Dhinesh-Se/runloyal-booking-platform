@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Edit2, Clock } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useStaff, useUpdateStaff } from './useStaff'
+import { useStaffPermissions } from './useStaffPermissions'
 import { StaffForm, type StaffFormValues } from './StaffForm'
 import { StaffAssignments } from './StaffAssignments'
 import { Modal } from '@/components/ui/Modal'
@@ -13,6 +14,7 @@ import { ErrorState } from '@/components/ui/EmptyState'
 import { extractErrorMessage } from '@/utils/errors'
 import { useAvailabilityForStaff } from '@/features/availability/useAvailability'
 import { AvailabilityTypeBadge } from '@/components/ui/Badge'
+import { isValidScheduleTimeZone } from '@/utils/schedule'
 
 const DAY_ORDER = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY']
 const DAY_LABELS: Record<string, string> = {
@@ -23,17 +25,20 @@ const DAY_LABELS: Record<string, string> = {
 export function StaffDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { data: staff, isLoading, isError, error } = useStaff()
+  const { identity, canManage } = useStaffPermissions()
+  const { data: staff, isLoading, isError, error, refetch } = useStaff()
   const updateStaff = useUpdateStaff()
-  const { data: availability, isLoading: avLoading } = useAvailabilityForStaff(id ?? '')
+  const availabilityQuery = useAvailabilityForStaff(id ?? '')
+  const { data: availability } = availabilityQuery
   const [editOpen, setEditOpen] = useState(false)
   const [mutationError, setMutationError] = useState<unknown>(null)
-  const [assignedIds, setAssignedIds] = useState<Set<string>>(new Set())
 
   const member = staff?.find((s) => s.id === id)
+  const timezone = identity.isSuccess && !identity.isError && isValidScheduleTimeZone(identity.data?.timezone)
+    ? identity.data.timezone : undefined
 
   if (isLoading) return <div className="page"><SkeletonCard lines={4} /></div>
-  if (isError) return <div className="page"><ErrorState message={extractErrorMessage(error)} /></div>
+  if (isError) return <div className="page"><ErrorState message={extractErrorMessage(error)} onRetry={() => refetch()} /></div>
   if (!member) return (
     <div className="page">
       <ErrorState title="Staff member not found" message="This staff member does not exist." />
@@ -44,6 +49,7 @@ export function StaffDetail() {
   )
 
   const handleEdit = async (values: StaffFormValues) => {
+    if (!canManage) return
     setMutationError(null)
     try {
       await updateStaff.mutateAsync({ id: member.id, command: values })
@@ -75,14 +81,14 @@ export function StaffDetail() {
             </div>
           </div>
         </div>
-        <Button
+        {canManage && <Button
           id="edit-staff-detail-btn"
           variant="secondary"
           icon={<Edit2 size={15} />}
           onClick={() => { setMutationError(null); setEditOpen(true) }}
         >
           Edit
-        </Button>
+        </Button>}
       </div>
 
       <div className="detail-grid">
@@ -90,20 +96,9 @@ export function StaffDetail() {
         <div className="card">
           <h2 className="card-section-title">Service Assignments</h2>
           <p className="text-muted" style={{ fontSize: 'var(--font-size-sm)', marginBottom: 'var(--space-4)' }}>
-            Check a service to assign this staff member to it.
+            {canManage ? 'Check a service to assign this staff member to it.' : 'View persisted service assignments · Read-only.'}
           </p>
-          <StaffAssignments
-            staffId={member.id}
-            assignedServiceIds={assignedIds}
-            onAssignmentChange={(svcId, assigned) => {
-              setAssignedIds((prev) => {
-                const next = new Set(prev)
-                if (assigned) next.add(svcId)
-                else next.delete(svcId)
-                return next
-              })
-            }}
-          />
+          <StaffAssignments staffId={member.id} />
         </div>
 
         {/* Availability */}
@@ -111,14 +106,20 @@ export function StaffDetail() {
           <div className="flex items-center justify-between" style={{ marginBottom: 'var(--space-4)' }}>
             <h2 className="card-section-title" style={{ marginBottom: 0 }}>Availability</h2>
             <Link to="/availability" className="btn btn--ghost btn--sm" style={{ fontSize: 'var(--font-size-sm)' }}>
-              <Clock size={14} /> Manage
+              <Clock size={14} /> {canManage ? 'Manage' : 'View availability'}
             </Link>
           </div>
-          {avLoading ? (
+          <p className="text-muted" style={{ fontSize: 'var(--font-size-sm)', marginBottom: 'var(--space-4)' }}>
+            {timezone ? `Recurring schedule · Tenant-local time (${timezone})` : 'Recurring schedule · Tenant-local time (timezone unavailable)'}
+          </p>
+          {availabilityQuery.isError ? (
+            <ErrorState title="Availability unavailable" message={extractErrorMessage(availabilityQuery.error)}
+              onRetry={() => availabilityQuery.refetch()} />
+          ) : availabilityQuery.isLoading || availability === undefined ? (
             <SkeletonCard lines={3} />
           ) : sortedAvailability.length === 0 ? (
             <p className="text-muted" style={{ fontSize: 'var(--font-size-sm)' }}>
-              No availability windows set. <Link to="/availability">Add availability →</Link>
+              No availability windows set. {canManage && <Link to="/availability">Add availability →</Link>}
             </p>
           ) : (
             <table className="table" aria-label={`Availability for ${member.name}`}>
@@ -140,7 +141,7 @@ export function StaffDetail() {
         </div>
       </div>
 
-      <Modal isOpen={editOpen} onClose={() => setEditOpen(false)} title={`Edit — ${member.name}`} size="md">
+      <Modal isOpen={canManage && editOpen} onClose={() => setEditOpen(false)} title={`Edit — ${member.name}`} size="md">
         <StaffForm
           defaultValues={{ name: member.name, status: member.status }}
           onSubmit={handleEdit}

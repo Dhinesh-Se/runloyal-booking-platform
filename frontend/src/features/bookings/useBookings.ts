@@ -6,6 +6,7 @@ import {
   cancelBooking,
 } from '@/api/bookings'
 import type { BookingCommand } from '@/api/types'
+import { isConflictError } from '@/utils/errors'
 
 export const BOOKINGS_QUERY_KEY = (from?: string, to?: string) =>
   from && to ? (['bookings', { from, to }] as const) : (['bookings'] as const)
@@ -36,6 +37,14 @@ export function useCreateBooking() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['bookings'] })
       qc.invalidateQueries({ queryKey: ['calendar'] })
+      qc.invalidateQueries({ queryKey: ['available-staff'] })
+    },
+    onError: (error) => {
+      if (isConflictError(error)) {
+        qc.invalidateQueries({ queryKey: ['bookings'] })
+        qc.invalidateQueries({ queryKey: ['calendar'] })
+        qc.invalidateQueries({ queryKey: ['available-staff'] })
+      }
     },
   })
 }
@@ -47,7 +56,16 @@ export function useCancelBooking() {
     onSuccess: (booking) => {
       qc.invalidateQueries({ queryKey: ['bookings'] })
       qc.invalidateQueries({ queryKey: ['calendar'] })
+      qc.invalidateQueries({ queryKey: ['available-staff'] })
       qc.invalidateQueries({ queryKey: BOOKING_DETAIL_KEY(booking.id) })
+    },
+    onError: (error, id) => {
+      if (isConflictError(error)) {
+        qc.invalidateQueries({ queryKey: ['bookings'] })
+        qc.invalidateQueries({ queryKey: ['calendar'] })
+        qc.invalidateQueries({ queryKey: ['available-staff'] })
+        qc.invalidateQueries({ queryKey: BOOKING_DETAIL_KEY(id) })
+      }
     },
   })
 }

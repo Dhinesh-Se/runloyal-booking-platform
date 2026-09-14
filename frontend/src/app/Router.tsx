@@ -14,7 +14,7 @@ import { DashboardPage } from '@/features/dashboard/DashboardPage'
 export function Router() {
   return (
     <Routes>
-      {/* Auth0 authorization-code callback */}
+      {/* Okta authorization-code + PKCE callback (not a protected route) */}
       <Route path="/login/callback" element={<LoginCallback />} />
 
       {/* Protected app shell */}

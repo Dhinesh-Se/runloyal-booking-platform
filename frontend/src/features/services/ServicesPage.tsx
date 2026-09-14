@@ -11,8 +11,10 @@ import { SkeletonTable } from '@/components/ui/Skeleton'
 import { EmptyState, ErrorState } from '@/components/ui/EmptyState'
 import { extractErrorMessage } from '@/utils/errors'
 import type { ServiceResponse } from '@/api/types'
+import { useServicePermissions } from './useServicePermissions'
 
 export function ServicesPage() {
+  const { isAdmin } = useServicePermissions()
   const { data: services, isLoading, isError, error, refetch } = useServices()
   const createService = useCreateService()
   const updateService = useUpdateService()
@@ -24,6 +26,7 @@ export function ServicesPage() {
   const [mutationError, setMutationError] = useState<unknown>(null)
 
   const handleCreate = async (values: ServiceFormValues) => {
+    if (!isAdmin) return
     setMutationError(null)
     try {
       await createService.mutateAsync({
@@ -38,7 +41,7 @@ export function ServicesPage() {
   }
 
   const handleEdit = async (values: ServiceFormValues) => {
-    if (!editTarget) return
+    if (!isAdmin || !editTarget) return
     setMutationError(null)
     try {
       await updateService.mutateAsync({ id: editTarget.id, command: { ...values, price: Number(values.price) } })
@@ -50,7 +53,7 @@ export function ServicesPage() {
   }
 
   const handleDelete = async () => {
-    if (!deleteTarget) return
+    if (!isAdmin || !deleteTarget) return
     try {
       await deleteService.mutateAsync(deleteTarget.id)
       setDeleteTarget(null)
@@ -65,15 +68,15 @@ export function ServicesPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Services</h1>
-          <p className="page-subtitle">Manage your service offerings</p>
+          <p className="page-subtitle">{isAdmin ? 'Manage your service offerings' : 'Browse your service offerings — read-only'}</p>
         </div>
-        <Button
+        {isAdmin && <Button
           id="create-service-btn"
           icon={<Plus size={16} />}
           onClick={() => { setMutationError(null); setCreateOpen(true) }}
         >
           New Service
-        </Button>
+        </Button>}
       </div>
 
       {isLoading && <SkeletonTable rows={6} cols={5} />}
@@ -85,8 +88,8 @@ export function ServicesPage() {
         <EmptyState
           icon={<span style={{ fontSize: 40 }}>🐾</span>}
           title="No services yet"
-          description="Create your first service to start accepting bookings."
-          action={{ label: 'Create Service', onClick: () => setCreateOpen(true) }}
+          description={isAdmin ? 'Create your first service to start accepting bookings.' : 'No services are available to view.'}
+          action={isAdmin ? { label: 'Create Service', onClick: () => setCreateOpen(true) } : undefined}
         />
       )}
 
@@ -121,22 +124,26 @@ export function ServicesPage() {
                   <td><StatusBadge status={svc.status} /></td>
                   <td>
                     <div className="table__actions">
-                      <button
-                        className="icon-btn"
-                        aria-label={`Edit ${svc.name}`}
-                        id={`edit-service-${svc.id}`}
-                        onClick={() => { setMutationError(null); setEditTarget(svc) }}
-                      >
-                        <Edit2 size={15} />
-                      </button>
-                      <button
-                        className="icon-btn icon-btn--danger"
-                        aria-label={`Delete ${svc.name}`}
-                        id={`delete-service-${svc.id}`}
-                        onClick={() => setDeleteTarget(svc)}
-                      >
-                        <Trash2 size={15} />
-                      </button>
+                      {isAdmin && (
+                        <>
+                          <button
+                            className="icon-btn"
+                            aria-label={`Edit ${svc.name}`}
+                            id={`edit-service-${svc.id}`}
+                            onClick={() => { setMutationError(null); setEditTarget(svc) }}
+                          >
+                            <Edit2 size={15} />
+                          </button>
+                          <button
+                            className="icon-btn icon-btn--danger"
+                            aria-label={`Delete ${svc.name}`}
+                            id={`delete-service-${svc.id}`}
+                            onClick={() => setDeleteTarget(svc)}
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </>
+                      )}
                       <Link
                         to={`/services/${svc.id}`}
                         className="icon-btn"
@@ -153,50 +160,54 @@ export function ServicesPage() {
         </div>
       )}
 
-      {/* Create Modal */}
-      <Modal
-        isOpen={createOpen}
-        onClose={() => setCreateOpen(false)}
-        title="Create Service"
-        size="lg"
-      >
-        <ServiceForm
-          onSubmit={handleCreate}
-          onCancel={() => setCreateOpen(false)}
-          submitLabel="Create Service"
-          serverError={mutationError}
-        />
-      </Modal>
+      {isAdmin && (
+        <>
+          {/* Create Modal */}
+          <Modal
+            isOpen={createOpen}
+            onClose={() => setCreateOpen(false)}
+            title="Create Service"
+            size="lg"
+          >
+            <ServiceForm
+              onSubmit={handleCreate}
+              onCancel={() => setCreateOpen(false)}
+              submitLabel="Create Service"
+              serverError={mutationError}
+            />
+          </Modal>
 
-      {/* Edit Modal */}
-      <Modal
-        isOpen={!!editTarget}
-        onClose={() => setEditTarget(null)}
-        title={`Edit — ${editTarget?.name}`}
-        size="lg"
-      >
-        {editTarget && (
-          <ServiceForm
-            defaultValues={serviceResponseToFormValues(editTarget)}
-            onSubmit={handleEdit}
-            onCancel={() => setEditTarget(null)}
-            submitLabel="Save Changes"
-            serverError={mutationError}
+          {/* Edit Modal */}
+          <Modal
+            isOpen={!!editTarget}
+            onClose={() => setEditTarget(null)}
+            title={`Edit — ${editTarget?.name}`}
+            size="lg"
+          >
+            {editTarget && (
+              <ServiceForm
+                defaultValues={serviceResponseToFormValues(editTarget)}
+                onSubmit={handleEdit}
+                onCancel={() => setEditTarget(null)}
+                submitLabel="Save Changes"
+                serverError={mutationError}
+              />
+            )}
+          </Modal>
+
+          {/* Delete Confirm */}
+          <ConfirmDialog
+            isOpen={!!deleteTarget}
+            onClose={() => setDeleteTarget(null)}
+            onConfirm={handleDelete}
+            title="Delete Service"
+            message={`Are you sure you want to delete "${deleteTarget?.name}"? This action cannot be undone.`}
+            confirmLabel="Delete"
+            variant="danger"
+            loading={deleteService.isPending}
           />
-        )}
-      </Modal>
-
-      {/* Delete Confirm */}
-      <ConfirmDialog
-        isOpen={!!deleteTarget}
-        onClose={() => setDeleteTarget(null)}
-        onConfirm={handleDelete}
-        title="Delete Service"
-        message={`Are you sure you want to delete "${deleteTarget?.name}"? This action cannot be undone.`}
-        confirmLabel="Delete"
-        variant="danger"
-        loading={deleteService.isPending}
-      />
+        </>
+      )}
     </div>
   )
 }

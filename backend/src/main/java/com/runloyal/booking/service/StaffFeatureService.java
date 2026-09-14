@@ -8,6 +8,7 @@ import com.runloyal.booking.repo.ServiceRepository;
 import com.runloyal.booking.repo.StaffRepository;
 import com.runloyal.booking.security.TenantContext;
 import com.runloyal.booking.web.dto.request.*;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -43,16 +44,16 @@ public class StaffFeatureService {
     public List<Staff> assignedTo(UUID serviceId) {
         var tenant = context.tenantId();
         services.findByIdAndTenantId(serviceId, tenant).orElseThrow(this::notFound);
-        return assignments.findByTenantIdAndServiceId(tenant, serviceId).stream()
-                .map(assignment -> staffs.findByIdAndTenantId(assignment.staffId, tenant).orElseThrow(this::notFound))
-                .toList();
+        var assigned = assignments.findByTenantIdAndServiceId(tenant, serviceId).stream()
+            .map(assignment -> assignment.staffId).collect(java.util.stream.Collectors.toSet());
+        return staffs.findByTenantId(tenant).stream().filter(staff -> assigned.contains(staff.id)).toList();
     }
 
-    @Transactional
+        @Transactional(isolation = Isolation.READ_COMMITTED)
     public Staff save(StaffCommand command, UUID id) {
         context.requireAdmin();
         var tenant = context.tenantId();
-        Staff staff = id == null ? new Staff() : find(id);
+        Staff staff = id == null ? new Staff() : lockStaff(id, tenant);
         if (id == null)
             staff.tenantId = tenant;
         staff.name = command.name();
@@ -60,12 +61,12 @@ public class StaffFeatureService {
         return staffs.save(staff);
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public void assign(UUID serviceId, UUID staffId, boolean add) {
         context.requireAdmin();
         var tenant = context.tenantId();
+        lockStaff(staffId, tenant);
         services.findByIdAndTenantId(serviceId, tenant).orElseThrow(this::notFound);
-        find(staffId);
         var key = new StaffService.Key();
         key.tenantId = tenant;
         key.staffId = staffId;
@@ -87,25 +88,26 @@ public class StaffFeatureService {
         return availabilities.findByTenantIdAndStaffId(context.tenantId(), staffId);
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public StaffAvailability saveAvailability(UUID staffId, AvailabilityCommand command, UUID id) {
         context.requireAdmin();
         if (!command.startTime().isBefore(command.endTime()))
             throw new IllegalArgumentException("startTime must precede endTime");
-        find(staffId);
-        var all = availability(staffId);
-        if (all.stream()
-                .anyMatch(
-                        value -> !value.id.equals(id)
-                                && value.dayOfWeek.equals(command.dayOfWeek())
-                                && value.type.equals(command.type())
-                                && command.startTime().isBefore(value.endTime)
-                                && command.endTime().isAfter(value.startTime)))
-            throw new IllegalStateException("Overlapping availability window");
+        var tenant = context.tenantId();
+        lockStaff(staffId, tenant);
         StaffAvailability value = id == null ? new StaffAvailability() : availabilityById(id);
         if (id != null && !value.staffId.equals(staffId))
             throw notFound();
-        value.tenantId = context.tenantId();
+        var all = availabilities.findByTenantIdAndStaffId(tenant, staffId);
+        if (all.stream()
+                .anyMatch(
+                        existing -> !existing.id.equals(id)
+                            && existing.dayOfWeek.equals(command.dayOfWeek())
+                            && existing.type.equals(command.type())
+                            && command.startTime().isBefore(existing.endTime)
+                            && command.endTime().isAfter(existing.startTime)))
+            throw new IllegalStateException("Overlapping availability window");
+        value.tenantId = tenant;
         value.staffId = staffId;
         value.dayOfWeek = command.dayOfWeek();
         value.startTime = command.startTime();
@@ -114,10 +116,13 @@ public class StaffFeatureService {
         return availabilities.save(value);
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public void deleteAvailability(UUID id) {
         context.requireAdmin();
-        availabilities.delete(availabilityById(id));
+        var tenant = context.tenantId();
+        var staffId = availabilities.findStaffIdByIdAndTenantId(id, tenant).orElseThrow(this::notFound);
+        lockStaff(staffId, tenant);
+        availabilities.delete(availabilities.findByIdAndTenantId(id, tenant).orElseThrow(this::notFound));
     }
 
     public Staff find(UUID id) {
@@ -130,5 +135,11 @@ public class StaffFeatureService {
 
     private NoSuchElementException notFound() {
         return new NoSuchElementException("Resource not found");
+    }
+
+    // All staff state, assignment and schedule writes use the booking mutex. Read-only paths
+    // deliberately do not lock. READ_COMMITTED ensures post-lock queries see the prior writer.
+    private Staff lockStaff(UUID id, UUID tenant) {
+        return staffs.lockByIdAndTenant(id, tenant).orElseThrow(this::notFound);
     }
 }

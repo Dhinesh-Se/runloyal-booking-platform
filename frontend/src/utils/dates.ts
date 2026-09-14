@@ -1,20 +1,40 @@
-import { format, parseISO, addMinutes, startOfWeek, addDays, formatISO } from 'date-fns'
+import { format, parseISO, addMinutes, toDate, formatISO as dateFnsFormatISO } from 'date-fns'
+import { UTCDate } from '@date-fns/utc'
 import type { DayOfWeek } from '@/api/types'
+
+// Calendar dates, arithmetic and display are UTC, independent of the browser zone.
+// Use date-fns' UTC adapter instead of constructing local wall times in DST gaps.
+
+function formatUTC(date: Date, fmt: string): string {
+  return format(new UTCDate(date.getTime()), fmt)
+}
+
+export function startOfUTCDay(date: Date): Date {
+  const result = new Date(date.getTime())
+  result.setUTCHours(0, 0, 0, 0)
+  return result
+}
+
+export function addUTCDays(date: Date, days: number): Date {
+  const result = new Date(date.getTime())
+  result.setUTCDate(result.getUTCDate() + days)
+  return result
+}
 
 /**
  * Format an ISO-8601 Instant for display.
  * We always show UTC explicitly to avoid silent timezone conversion.
  */
 export function formatInstant(instant: string, fmt = 'MMM d, yyyy HH:mm') {
-  return format(parseISO(instant), fmt) + ' UTC'
+  return formatUTC(parseISO(instant), fmt) + ' UTC'
 }
 
 export function formatInstantDate(instant: string) {
-  return format(parseISO(instant), 'MMM d, yyyy')
+  return formatUTC(parseISO(instant), 'MMM d, yyyy')
 }
 
 export function formatInstantTime(instant: string) {
-  return format(parseISO(instant), 'HH:mm') + ' UTC'
+  return formatUTC(parseISO(instant), 'HH:mm') + ' UTC'
 }
 
 /**
@@ -28,14 +48,15 @@ export function deriveEndInstant(startAt: string, durationMinutes: number): stri
  * Get the Monday of the week containing the given date.
  */
 export function getWeekStart(date: Date): Date {
-  return startOfWeek(date, { weekStartsOn: 1 })
+  const day = startOfUTCDay(date)
+  return addUTCDays(day, -((day.getUTCDay() + 6) % 7))
 }
 
 /**
  * Get array of 7 dates (Mon–Sun) for a given week start.
  */
 export function getWeekDays(weekStart: Date): Date[] {
-  return Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
+  return Array.from({ length: 7 }, (_, i) => addUTCDays(startOfUTCDay(weekStart), i))
 }
 
 /**
@@ -50,9 +71,9 @@ export function toInstant(date: Date): string {
  */
 export function formatCalendarDay(date: Date): { dayName: string; dayNum: string; monthShort: string } {
   return {
-    dayName: format(date, 'EEE'),
-    dayNum: format(date, 'd'),
-    monthShort: format(date, 'MMM'),
+    dayName: formatUTC(date, 'EEE'),
+    dayNum: formatUTC(date, 'd'),
+    monthShort: formatUTC(date, 'MMM'),
   }
 }
 
@@ -60,8 +81,8 @@ export function formatCalendarDay(date: Date): { dayName: string; dayNum: string
  * Format a week range for the week navigator label.
  */
 export function formatWeekRange(weekStart: Date): string {
-  const weekEnd = addDays(weekStart, 6)
-  return `${format(weekStart, 'MMM d')} – ${format(weekEnd, 'MMM d, yyyy')}`
+  const weekEnd = addUTCDays(weekStart, 6)
+  return `${formatUTC(weekStart, 'MMM d')} – ${formatUTC(weekEnd, 'MMM d, yyyy')}`
 }
 
 /**
@@ -69,7 +90,7 @@ export function formatWeekRange(weekStart: Date): string {
  */
 export function dateToDayOfWeek(date: Date): DayOfWeek {
   const days: DayOfWeek[] = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY']
-  return days[date.getDay()]
+  return days[date.getUTCDay()]
 }
 
 /**
@@ -91,7 +112,8 @@ export function minutesToHHMM(minutes: number): string {
 
 /**
  * Convert a date and a LocalTime string to an ISO UTC instant.
- * Treats LocalTime as UTC (backend evaluates in tenant timezone).
+ * Treats the input clock time as UTC. This does NOT convert tenant-local
+ * recurring availability windows, which the backend evaluates in its tenant zone.
  */
 export function dateAndTimeToInstant(date: Date, localTime: string): string {
   const [h, m] = localTime.split(':').map(Number)
@@ -107,7 +129,13 @@ export function dateAndTimeToInstant(date: Date, localTime: string): string {
 export function getWeekStartFromOffset(offset: number): Date {
   const today = new Date()
   const weekStart = getWeekStart(today)
-  return addDays(weekStart, offset * 7)
+  return addUTCDays(weekStart, offset * 7)
 }
 
-export { formatISO }
+export const formatISO: typeof dateFnsFormatISO = (date, options) =>
+  dateFnsFormatISO(new UTCDate(toDate(date).getTime()), options)
+
+/** Half-open instant intervals: touching boundaries do not overlap. */
+export function instantIntervalsOverlap(start: string, end: string, otherStart: string, otherEnd: string): boolean {
+  return Date.parse(start) < Date.parse(otherEnd) && Date.parse(end) > Date.parse(otherStart)
+}

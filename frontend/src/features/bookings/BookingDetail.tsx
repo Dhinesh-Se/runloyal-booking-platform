@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Clock, XCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { Modal } from '@/components/ui/Modal'
@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { BookingStatusBadge } from '@/components/ui/Badge'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { useBooking, useCancelBooking } from './useBookings'
+import { useCanManageBookings } from './useBookingPermissions'
 import { useServices } from '@/features/services/useServices'
 import { useStaff } from '@/features/staff/useStaff'
 import { formatInstant } from '@/utils/dates'
@@ -23,16 +24,24 @@ export function BookingDetail({ bookingId, isOpen, onClose }: BookingDetailProps
   const { data: services } = useServices()
   const { data: staffList } = useStaff()
   const cancelBookingMutation = useCancelBooking()
+  const canManageBookings = useCanManageBookings()
 
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false)
+  useEffect(() => {
+    setConfirmCancelOpen(false)
+  }, [isOpen, bookingId, canManageBookings])
 
   if (!isOpen || !bookingId) return null
 
   const service = services?.find((s) => s.id === booking?.serviceId)
   const staff = staffList?.find((s) => s.id === booking?.staffId)
+  const durationMinutes = booking
+    ? (Date.parse(booking.endAt) - Date.parse(booking.startAt)) / 60_000
+    : NaN
 
   const handleCancelBooking = async () => {
-    if (!booking) return
+    if (!isOpen || !canManageBookings || !confirmCancelOpen || !booking ||
+      booking.id !== bookingId || booking.status !== 'CONFIRMED' || cancelBookingMutation.isPending) return
     try {
       await cancelBookingMutation.mutateAsync(booking.id)
       toast.success('Booking cancelled successfully')
@@ -102,9 +111,14 @@ export function BookingDetail({ bookingId, isOpen, onClose }: BookingDetailProps
                 <p style={{ fontWeight: 600, color: 'var(--text-primary)', marginTop: 2 }}>
                   {service?.name ?? booking.serviceId}
                 </p>
+                {Number.isFinite(durationMinutes) && durationMinutes > 0 && (
+                  <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginTop: 2 }}>
+                    Booked duration: {durationMinutes} min
+                  </p>
+                )}
                 {service && (
                   <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginTop: 2 }}>
-                    {service.durationMinutes} min • ${service.price.toFixed(2)}
+                    Current catalog price: ${service.price.toFixed(2)} (not a historical sale price)
                   </p>
                 )}
               </div>
@@ -139,7 +153,7 @@ export function BookingDetail({ bookingId, isOpen, onClose }: BookingDetailProps
 
             {/* Actions */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'var(--space-2)' }}>
-              {booking.status === 'CONFIRMED' ? (
+              {booking.status === 'CONFIRMED' && canManageBookings ? (
                 <Button
                   id="cancel-booking-btn"
                   variant="danger"
@@ -148,11 +162,11 @@ export function BookingDetail({ bookingId, isOpen, onClose }: BookingDetailProps
                 >
                   Cancel Booking
                 </Button>
-              ) : (
+              ) : booking.status === 'CANCELLED' ? (
                 <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', fontStyle: 'italic' }}>
                   This booking has been cancelled
                 </span>
-              )}
+              ) : <span className="text-muted">Read-only booking details</span>}
 
               <Button variant="ghost" onClick={onClose}>
                 Close
@@ -164,7 +178,7 @@ export function BookingDetail({ bookingId, isOpen, onClose }: BookingDetailProps
 
       {/* Cancel Confirmation Dialog */}
       <ConfirmDialog
-        isOpen={confirmCancelOpen}
+        isOpen={confirmCancelOpen && canManageBookings && booking?.status === 'CONFIRMED'}
         title="Cancel Booking"
         message={`Are you sure you want to cancel the booking for ${booking?.customerName}? This will immediately free the slot in the calendar.`}
         confirmLabel="Yes, Cancel Booking"

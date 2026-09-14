@@ -1,21 +1,27 @@
 spring:
-
+  config:
+    # Optional local NAME=value properties; environment variables still take precedence.
+    import: optional:file:./.env[.properties]
   datasource:
     url: ${DB_URL:jdbc:mysql://localhost:3306/runloyal}
     username: ${DB_USER:runloyal}
     password: ${DB_PASSWORD:runloyal}
   jpa:
     open-in-view: false
+    properties:
+      # Both database schemas persist UUIDs as BINARY(16), not MariaDB native UUID.
+      hibernate.type.preferred_uuid_jdbc_type: BINARY
     hibernate:
       ddl-auto: validate
   flyway:
     enabled: true
+    locations: ${DB_MIGRATION_LOCATION:classpath:db/migration}
   security:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: ${AUTH0_ISSUER_URI:https://example.okta.com/oauth2/default}
-          audience: ${AUTH0_AUDIENCE:api://default}
+          issuer-uri: ${OKTA_ISSUER_URI}
+          audience: ${OKTA_AUDIENCE}
 
 springdoc:
   swagger-ui:
