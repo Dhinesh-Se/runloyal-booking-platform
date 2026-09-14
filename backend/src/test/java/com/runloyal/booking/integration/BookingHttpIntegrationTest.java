@@ -23,6 +23,8 @@ import com.runloyal.booking.domain.AppUser;
 import com.runloyal.booking.domain.Model;
 import com.runloyal.booking.web.dto.request.AvailabilityCommand;
 import com.runloyal.booking.web.dto.request.BookingCommand;
+import com.runloyal.booking.web.dto.request.UnavailabilityCommand;
+import java.time.Instant;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
@@ -172,7 +174,8 @@ class BookingHttpIntegrationTest extends RepositoryIntegrationSupport {
                 "/api/services", "/api/services/{id}", "/api/services/{service}/available-staff",
                 "/api/services/{service}/available-slots", "/api/services/{service}/staff",
                 "/api/services/{service}/staff/{staff}", "/api/staff", "/api/staff/{id}",
-                "/api/staff/{staff}/availability", "/api/staff/{staff}/availability/{id}")) {
+                "/api/staff/{staff}/availability", "/api/staff/{staff}/availability/{id}",
+                "/api/staff/{staff}/unavailability", "/api/staff/{staff}/unavailability/{id}")) {
             assertThat(paths.has(path)).as("Documented production path %s", path).isTrue();
         }
         assertThat(paths.path("/api/bookings").has("get")).isTrue();
@@ -384,6 +387,25 @@ class BookingHttpIntegrationTest extends RepositoryIntegrationSupport {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.staffId").value(local.staff().id.toString())));
         performAs(local.admin(), get(localPath)).andExpect(status().isOk())
                 .andExpect(jsonPath("$[*].id").value(contains(replacement.toString())));
+    }
+
+    @Test
+    void datedUnavailabilityIsTenantScopedAndBlocksBookingUntilDeleted() throws Exception {
+        String localPath = "/api/staff/" + local.staff().id + "/unavailability";
+        var command = new UnavailabilityCommand(START, START.plusSeconds(3600), "Training");
+        UUID id = responseId(performAs(local.admin(), body(post(localPath), command))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.staffId").value(local.staff().id.toString())));
+        performAs(local.admin(), get(localPath)).andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].id").value(contains(id.toString())));
+        performAs(local.admin(), body(post("/api/bookings"), command(local, START)))
+                .andExpect(apiError(409, "CONFLICT"));
+        performAs(local.admin(), get("/api/staff/" + foreign.staff().id + "/unavailability"))
+                .andExpect(apiError(404, "NOT_FOUND"));
+        performAs(local.admin(), delete("/api/staff/" + local.staff().id + "/unavailability/" + id))
+                .andExpect(status().isNoContent());
+        performAs(local.admin(), body(post("/api/bookings"), command(local, START)))
+                .andExpect(status().isCreated());
     }
 
     @Test
