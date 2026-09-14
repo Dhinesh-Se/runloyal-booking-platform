@@ -8,6 +8,7 @@ import com.runloyal.booking.repo.BookingRepository;
 import com.runloyal.booking.repo.ServiceRepository;
 import com.runloyal.booking.repo.StaffRepository;
 import com.runloyal.booking.repo.TenantRepository;
+import com.runloyal.booking.repo.UnavailabilityRepository;
 import com.runloyal.booking.security.TenantContext;
 import com.runloyal.booking.web.dto.request.BookingCommand;
 import org.springframework.transaction.annotation.Isolation;
@@ -29,6 +30,7 @@ public class BookingFeatureService {
     private final AssignmentRepository assignments;
     private final AvailabilityRepository availabilities;
     private final BookingRepository bookings;
+    private final UnavailabilityRepository unavailable;
     private final AvailabilityEngine engine = new AvailabilityEngine();
 
     public BookingFeatureService(
@@ -38,7 +40,7 @@ public class BookingFeatureService {
             StaffRepository staffs,
             AssignmentRepository assignments,
             AvailabilityRepository availabilities,
-            BookingRepository bookings) {
+            BookingRepository bookings, UnavailabilityRepository unavailable) {
         this.context = context;
         this.tenants = tenants;
         this.services = services;
@@ -46,6 +48,7 @@ public class BookingFeatureService {
         this.assignments = assignments;
         this.availabilities = availabilities;
         this.bookings = bookings;
+        this.unavailable = unavailable;
     }
 
     @Transactional(readOnly = true)
@@ -153,7 +156,8 @@ public class BookingFeatureService {
                 rules,
                 conflicts,
                 start,
-                zone(tenant));
+                unavailable.inRange(tenant, List.of(staff.id), start,
+                        start.plusSeconds(service.durationMinutes * 60L)), start, zone(tenant));
     }
 
     private ZoneId zone(UUID tenant) {
@@ -178,17 +182,21 @@ public class BookingFeatureService {
         var confirmed = staff.isEmpty() ? Map.<UUID, List<Booking>>of()
                 : bookings.confirmedInRange(tenant, from, to).stream()
                         .collect(Collectors.groupingBy(b -> b.staffId));
-        return new AvailabilityData(staff, rules, confirmed, zone(tenant));
+        var exceptions = staff.isEmpty() ? Map.<UUID, List<StaffUnavailability>>of()
+                : unavailable.inRange(tenant, staff.stream().map(s -> s.id).toList(), from, to).stream()
+                        .collect(Collectors.groupingBy(u -> u.staffId));
+        return new AvailabilityData(staff, rules, confirmed, exceptions, zone(tenant));
     }
 
     private List<Staff> eligibleStaff(ServiceOffering service, Instant start, AvailabilityData data) {
         return data.staff.stream().filter(staff -> engine.eligible(staff, service, true,
                 data.rules.getOrDefault(staff.id, List.of()),
-                data.confirmed.getOrDefault(staff.id, List.of()), start, data.zone)).toList();
+                data.confirmed.getOrDefault(staff.id, List.of()), data.exceptions.getOrDefault(staff.id, List.of()),
+                start, data.zone)).toList();
     }
 
     private record AvailabilityData(List<Staff> staff, Map<UUID, List<StaffAvailability>> rules,
-            Map<UUID, List<Booking>> confirmed, ZoneId zone) {}
+            Map<UUID, List<Booking>> confirmed, Map<UUID, List<StaffUnavailability>> exceptions, ZoneId zone) {}
 
     private <T> T find(java.util.Optional<T> value) {
         return value.orElseThrow(() -> new NoSuchElementException("Resource not found"));
