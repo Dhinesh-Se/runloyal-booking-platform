@@ -6,6 +6,7 @@ import com.runloyal.booking.repo.AssignmentRepository;
 import com.runloyal.booking.repo.AvailabilityRepository;
 import com.runloyal.booking.repo.ServiceRepository;
 import com.runloyal.booking.repo.StaffRepository;
+import com.runloyal.booking.repo.UnavailabilityRepository;
 import com.runloyal.booking.security.TenantContext;
 import com.runloyal.booking.web.dto.request.*;
 import org.springframework.transaction.annotation.Isolation;
@@ -22,18 +23,20 @@ public class StaffFeatureService {
     private final ServiceRepository services;
     private final AssignmentRepository assignments;
     private final AvailabilityRepository availabilities;
+    private final UnavailabilityRepository unavailable;
 
     public StaffFeatureService(
             TenantContext context,
             StaffRepository staffs,
             ServiceRepository services,
             AssignmentRepository assignments,
-            AvailabilityRepository availabilities) {
+            AvailabilityRepository availabilities, UnavailabilityRepository unavailable) {
         this.context = context;
         this.staffs = staffs;
         this.services = services;
         this.assignments = assignments;
         this.availabilities = availabilities;
+        this.unavailable = unavailable;
     }
 
     public List<Staff> list() {
@@ -131,6 +134,39 @@ public class StaffFeatureService {
 
     public StaffAvailability availabilityById(UUID id) {
         return availabilities.findByIdAndTenantId(id, context.tenantId()).orElseThrow(this::notFound);
+    }
+
+    public List<StaffUnavailability> unavailability(UUID staffId) {
+        find(staffId);
+        return unavailable.findByTenantIdAndStaffId(context.tenantId(), staffId);
+    }
+
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public StaffUnavailability saveUnavailability(UUID staffId, UnavailabilityCommand command, UUID id) {
+        context.requireAdmin();
+        if (!command.startAt().isBefore(command.endAt()))
+            throw new IllegalArgumentException("startAt must precede endAt");
+        var tenant = context.tenantId();
+        lockStaff(staffId, tenant);
+        StaffUnavailability value = id == null ? new StaffUnavailability()
+                : unavailable.findByIdAndTenantId(id, tenant).orElseThrow(this::notFound);
+        if (id != null && !value.staffId.equals(staffId)) throw notFound();
+        value.tenantId = tenant;
+        value.staffId = staffId;
+        value.startAt = command.startAt();
+        value.endAt = command.endAt();
+        value.reason = command.reason() == null ? "" : command.reason().strip();
+        return unavailable.save(value);
+    }
+
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public void deleteUnavailability(UUID staffId, UUID id) {
+        context.requireAdmin();
+        var tenant = context.tenantId();
+        lockStaff(staffId, tenant);
+        var value = unavailable.findByIdAndTenantId(id, tenant).orElseThrow(this::notFound);
+        if (!value.staffId.equals(staffId)) throw notFound();
+        unavailable.delete(value);
     }
 
     private NoSuchElementException notFound() {

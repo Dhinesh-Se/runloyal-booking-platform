@@ -8,7 +8,7 @@
 
 ## Availability and booking integrity
 
-[AvailabilityEngine](src/main/java/com/runloyal/booking/service/AvailabilityEngine.java) requires an ACTIVE service and staff member, a service assignment, the entire duration within working hours, no break/OFF overlap, and no conflicting confirmed booking. Cancelled bookings do not block availability. Intervals are half-open: `[start, end)`; touching endpoints do not conflict. Cross-day slots are rejected by the current engine.
+[AvailabilityEngine](src/main/java/com/runloyal/booking/service/AvailabilityEngine.java) requires an ACTIVE service and staff member, a service assignment, the entire duration within working hours, no break/OFF overlap, no dated unavailable-period overlap, and no conflicting confirmed booking. Cancelled bookings do not block availability. Intervals are half-open: `[start, end)`; touching endpoints do not conflict. Cross-day slots are rejected by the current engine.
 
 `GET /api/services/{serviceId}/available-staff?startAt=...` checks a candidate start. `GET /api/services/{serviceId}/available-slots?from=...&to=...` generates 30-minute candidate starts in tenant time, returning service-duration-derived ends and eligible staff. Booking creation derives `endAt` from the service duration and revalidates eligibility immediately before persistence; client-side validation alone is not authoritative.
 
@@ -40,16 +40,13 @@ On sign-out, the frontend locks protected content, cancels transport work, block
 
 MySQL remains the default database/seed location. Local MariaDB uses `jdbc:mariadb:` and `DB_MIGRATION_LOCATION=classpath:db/mariadb`, selecting the patched MariaDB driver and compatible seed conversion. Both schemas keep UUIDs as BINARY(16); Hibernate explicitly uses BINARY UUID binding. Original MySQL migrations/checksums were preserved. MariaDB V1 is identical; V2 replaces UUID_TO_BIN with equivalent UNHEX/REPLACE conversion. Future schema changes must be mirrored across locations.
 
-Do not change migration locations, repair failed history, or rewrite checksums blindly on an existing database. Inspect history and partial data and take a backup first. Local MariaDB 12.3.2 passed migration/schema validation, but Flyway 10.20.1 warns this version is beyond its tested range and its `WSREP_ON` probe is unavailable. This is not full compatibility or concurrency certification. The PDF specifies MySQL or PostgreSQL; MySQL 8.4 is the provided assessment configuration, while MariaDB is only a local compatibility option.
+Do not change migration locations, repair failed history, or rewrite checksums blindly on an existing database. Inspect history and partial data and take a backup first. Local MariaDB 12.3.2 passed migration/schema validation, but Flyway 10.20.1 warns this version is beyond its tested range and its `WSREP_ON` probe is unavailable. This is not full compatibility or concurrency certification. MySQL 8.4 is the provided assessment configuration, while MariaDB is only a local compatibility option.
 
 ## Known limitations
 
 These previously identified implementation/test gaps are retained through the documentation cleanup; a report of working local login does not independently close them.
 
-- **Calendar eligibility:** recurring schedules are drawn without tenant-to-UTC conversion, and the calendar does not consume authoritative eligible slots. Service qualification/duration and aggregate staff availability are not fully represented. The week grid shows only the first simultaneous booking per cell and is limited to 08:00–19:00 UTC; day view has separate staff columns.
-- **Required views:** staff availability edits one selected staff member's recurring week; the all-staff-row week with detailed dated staff/day navigation remains incomplete. Service detail lacks upcoming availability/bookings and a dedicated assignment action.
-- **OFF/role UI:** OFF is shown as all-day but evaluated as a stored interval by the API. STAFF may see management controls even though backend writes are denied. These UI semantics need alignment.
-- **Concurrency:** real MySQL parallel booking proof and concurrent schedule-edit tests are absent; the transaction-snapshot risk described above remains open.
-- **Security/integration tests:** JWT/configuration and selected tenant-context/service tests are present, but exhaustive HTTP invalid-token, STAFF-write denial, cross-tenant service/staff/booking/availability/assignment, and database-backed booking create/cancel tests remain necessary. No MySQL Testcontainers profile is implemented.
+- **Concurrency:** real MySQL parallel booking proof and concurrent schedule-edit tests remain necessary; the transaction-snapshot risk described above must be closed with database-backed evidence.
+- **Delivery verification:** the backend integration suite uses H2. Run the complete authenticated and concurrent acceptance suite against MySQL 8 before submission.
 
 Last recorded unit/component results and developer-reported runtime status are in [README.md](../README.md#tests-and-verification). Existing tests and working local flows are not full assessment sign-off. No new application tests or source changes were made by this documentation cleanup.

@@ -58,6 +58,15 @@ export interface AvailabilityResponse {
   type: AvailabilityType
 }
 
+export interface UnavailabilityResponse {
+  id: string
+  tenantId: string
+  staffId: string
+  startAt: string
+  endAt: string
+  reason: string
+}
+
 export interface BookingResponse {
   id: string
   tenantId: string
@@ -99,6 +108,12 @@ export interface AvailabilityCommand {
   startTime: string   // "HH:mm" sent to backend
   endTime: string     // "HH:mm"
   type: AvailabilityType
+}
+
+export interface UnavailabilityCommand {
+  startAt: string
+  endAt: string
+  reason?: string
 }
 
 export interface BookingCommand {

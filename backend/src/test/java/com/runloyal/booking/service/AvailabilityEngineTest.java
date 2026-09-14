@@ -106,6 +106,22 @@ class AvailabilityEngineTest {
   }
 
   @Test
+  void datedUnavailabilityBlocksOnlyItsOwnTenantAndStaff() {
+    var exception = new StaffUnavailability();
+    exception.tenantId = tenantId;
+    exception.staffId = staffId;
+    exception.startAt = at(10, 0);
+    exception.endAt = at(11, 0);
+    exception.reason = "Training";
+    var rules = List.of(rule(Model.AvailabilityType.WORKING, LocalTime.of(9, 0), LocalTime.of(17, 0)));
+
+    assertFalse(engine.eligible(staff(), service(), true, rules, List.of(), List.of(exception), at(10, 0), zone));
+    assertTrue(engine.eligible(staff(), service(), true, rules, List.of(), List.of(exception), at(11, 0), zone));
+    exception.tenantId = UUID.randomUUID();
+    assertTrue(engine.eligible(staff(), service(), true, rules, List.of(), List.of(exception), at(10, 0), zone));
+  }
+
+  @Test
   void inactiveServiceAndLongDurationAreRejected() {
     var rules = List.of(rule(Model.AvailabilityType.WORKING, LocalTime.of(9, 0), LocalTime.of(17, 0)));
     var inactive = service();
