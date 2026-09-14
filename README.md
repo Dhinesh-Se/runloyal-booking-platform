@@ -136,12 +136,12 @@ For an assessment walkthrough, test two tenant admins and STAFF, verify `/api/me
 
 ## Required deliverables
 
-Section 12 of the [assignment PDF](RunLoyal_Machine_Test_Multi_Tenant_Service_Staff_Booking.pdf) asks for the following. Separate review reports and component READMEs are not required; setup is consolidated here.
+Section 12 of the assignment asks for the following. Shared setup is maintained here; directory-specific startup guides are in [backend/README.md](backend/README.md) and [frontend/README.md](frontend/README.md).
 
 | Deliverable | Location |
 | --- | --- |
 | Complete source | [backend/src](backend/src), [frontend/src](frontend/src), and their build/configuration files |
-| Setup/run instructions | [README.md](README.md) |
+| Setup/run instructions | [README.md](README.md), [backend/README.md](backend/README.md), [frontend/README.md](frontend/README.md) |
 | Database migrations | [backend/src/main/resources/db/migration](backend/src/main/resources/db/migration); optional [MariaDB variants](backend/src/main/resources/db/mariadb) |
 | Docker / Docker Compose | [backend/Dockerfile](backend/Dockerfile), [backend/docker-compose.yml](backend/docker-compose.yml) |
 | Automated tests | [backend/src/test](backend/src/test), [frontend/src/__tests__](frontend/src/__tests__) |
@@ -151,4 +151,4 @@ Section 12 of the [assignment PDF](RunLoyal_Machine_Test_Multi_Tenant_Service_St
 | Two-tenant demo data | [V2 seed](backend/src/main/resources/db/migration/V2__demo_data.sql) |
 | Isolation/concurrency/timezone notes | [backend/TECHNICAL_NOTES.md](backend/TECHNICAL_NOTES.md) |
 
-Submit source, dependency manifests/lockfile, configuration templates, tests, migrations, Docker files, and these four Markdown documents. Exclude local environment files, passwords/tokens, database exports, dependency directories, virtual environments, build outputs, and local review/tool artifacts from any submission archive. Keep generic configuration templates. Do not delete working local dependencies or credentials just to prepare an archive.
+Submit source, dependency manifests/lockfile, configuration templates, tests, migrations, Docker files, and the Markdown documentation listed above. Exclude local environment files, passwords/tokens, database exports, dependency directories, virtual environments, build outputs, and local review/tool artifacts from any submission archive. Keep generic configuration templates. Do not delete working local dependencies or credentials just to prepare an archive.
