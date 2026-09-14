@@ -53,7 +53,8 @@ public class SecurityConfig {
         } catch (IllegalArgumentException exception) {
             throw new IllegalArgumentException("OKTA_ISSUER_URI must be a valid HTTPS custom authorization server URI");
         }
-        // Custom domains are supported; org authorization servers cannot issue tokens for this API.
+        // Custom domains are supported; org authorization servers cannot issue tokens
+        // for this API.
         if (!"https".equalsIgnoreCase(issuer.getScheme())
                 || issuer.getHost() == null
                 || issuer.getRawUserInfo() != null
@@ -65,28 +66,32 @@ public class SecurityConfig {
                 || !issuer.getRawPath().matches("/oauth2/[A-Za-z0-9_-]+")) {
             throw new IllegalArgumentException(
                     "OKTA_ISSUER_URI must use HTTPS and /oauth2/{id}, without userinfo, query, fragment or trailing slash. "
-                        + "Copy the Issuer URI from Okta Security > API > Authorization Servers, not the org URL.");
+                            + "Copy the Issuer URI from Okta Security > API > Authorization Servers, not the org URL.");
         }
         OAuth2TokenValidator<Jwt> issuerValidator = JwtValidators.createDefaultWithIssuer(issuerUri);
         OAuth2TokenValidator<Jwt> audienceValidator = jwt -> jwt.getAudience() != null
                 && jwt.getAudience().contains(audience)
-                ? OAuth2TokenValidatorResult.success()
-                : OAuth2TokenValidatorResult.failure(new OAuth2Error(
-                        "invalid_token", "The required audience is missing", null));
-            OAuth2TokenValidator<Jwt> accessTokenValidator = jwt -> {
-                // Okta access tokens contain scp; ID tokens are identity-only even if
-                // an administrator mistakenly configures the API audience as a client ID.
-                // Do not substitute uid/email claims for the signed access-token subject.
-                Object scopes = jwt.getClaims().get("scp");
-                boolean hasScopes = scopes instanceof List<?> values && !values.isEmpty()
+                        ? OAuth2TokenValidatorResult.success()
+                        : OAuth2TokenValidatorResult.failure(new OAuth2Error(
+                                "invalid_token", "The required audience is missing", null));
+        OAuth2TokenValidator<Jwt> accessTokenValidator = jwt -> {
+            // Okta access tokens contain scp; ID tokens are identity-only even if
+            // an administrator mistakenly configures the API audience as a client ID.
+            // Do not substitute uid/email claims for the signed access-token subject.
+            Object scopes = jwt.getClaims().get("scp");
+            boolean hasScopes = scopes instanceof List<?> values
+                    && !values.isEmpty()
                     && values.stream().allMatch(scope -> scope instanceof String value && !value.isBlank());
-                if (jwt.getExpiresAt() == null || jwt.getSubject() == null || jwt.getSubject().isBlank() || !hasScopes) {
+            if (jwt.getExpiresAt() == null
+                    || jwt.getSubject() == null
+                    || jwt.getSubject().isBlank()
+                    || !hasScopes) {
                 return OAuth2TokenValidatorResult.failure(new OAuth2Error(
-                    "invalid_token", "An expiring Okta access token with a subject and scopes is required", null));
-                }
-                return OAuth2TokenValidatorResult.success();
-            };
-            return new DelegatingOAuth2TokenValidator<>(issuerValidator, audienceValidator, accessTokenValidator);
+                        "invalid_token", "An expiring Okta access token with a subject and scopes is required", null));
+            }
+            return OAuth2TokenValidatorResult.success();
+        };
+        return new DelegatingOAuth2TokenValidator<>(issuerValidator, audienceValidator, accessTokenValidator);
     }
 
     private static void requireConfigured(String value, String name) {
@@ -98,29 +103,31 @@ public class SecurityConfig {
     @Bean
     SecurityFilterChain security(HttpSecurity http, ObjectMapper objectMapper) throws Exception {
         AuthenticationEntryPoint unauthorized = (request, response, exception) -> {
-            // Preserve the bearer challenge without exposing decoder messages or token claims.
+            // Preserve the bearer challenge without exposing decoder messages or token
+            // claims.
             boolean invalidToken = exception instanceof OAuth2AuthenticationException oauth2Exception
-                && "invalid_token".equals(oauth2Exception.getError().getErrorCode());
+                    && "invalid_token".equals(oauth2Exception.getError().getErrorCode());
             response.setHeader(HttpHeaders.WWW_AUTHENTICATE,
-                invalidToken ? "Bearer error=\"invalid_token\"" : "Bearer");
+                    invalidToken ? "Bearer error=\"invalid_token\"" : "Bearer");
             writeError(objectMapper, request, response, 401, "UNAUTHORIZED");
         };
         return http.csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(
                         authorize -> authorize
-                    .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**", "/actuator/health")
+                                .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**",
+                                        "/actuator/health")
                                 .permitAll()
                                 .anyRequest()
                                 .authenticated())
                 .exceptionHandling(
                         exceptions -> exceptions
-                    .authenticationEntryPoint(unauthorized)
+                                .authenticationEntryPoint(unauthorized)
                                 .accessDeniedHandler(
                                         (request, response, exception) -> writeError(objectMapper, request, response,
                                                 403, "FORBIDDEN")))
-            .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults())
-                .authenticationEntryPoint(unauthorized))
+                .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults())
+                        .authenticationEntryPoint(unauthorized))
                 .build();
     }
 
