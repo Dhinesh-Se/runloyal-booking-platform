@@ -40,7 +40,7 @@ On sign-out, the frontend locks protected content, cancels transport work, block
 
 MySQL remains the default database/seed location. Local MariaDB uses `jdbc:mariadb:` and `DB_MIGRATION_LOCATION=classpath:db/mariadb`, selecting the patched MariaDB driver and compatible seed conversion. Both schemas keep UUIDs as BINARY(16); Hibernate explicitly uses BINARY UUID binding. Original MySQL migrations/checksums were preserved. MariaDB V1 is identical; V2 replaces UUID_TO_BIN with equivalent UNHEX/REPLACE conversion. Future schema changes must be mirrored across locations.
 
-Do not change migration locations, repair failed history, or rewrite checksums blindly on an existing database. Inspect history and partial data and take a backup first. Local MariaDB 12.3.2 passed migration/schema validation, but Flyway 10.20.1 warns this version is beyond its tested range and its `WSREP_ON` probe is unavailable. This is not full compatibility or concurrency certification. The PDF specifies MySQL or PostgreSQL; MySQL 8.4 is the provided assessment configuration, while MariaDB is only a local compatibility option.
+Do not change migration locations, repair failed history, or rewrite checksums blindly on an existing database. Inspect history and partial data and take a backup first. Local MariaDB 12.3.2 passed migration/schema validation, but Flyway 10.20.1 warns this version is beyond its tested range and its `WSREP_ON` probe is unavailable. This is not full compatibility or concurrency certification. MySQL 8.4 is the provided assessment configuration, while MariaDB is only a local compatibility option.
 
 ## Known limitations
 
