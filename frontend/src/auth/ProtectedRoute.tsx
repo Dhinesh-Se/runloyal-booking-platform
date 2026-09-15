@@ -4,6 +4,7 @@ import { useAuth } from './useAuth'
 import { useOktaAuth } from '@okta/okta-react'
 import { cancelApiRequests } from '@/api/client'
 import { isTokenAccessBlocked, updateAuthSession } from './session'
+import { LoginPage } from './LoginPage'
 
 export function ProtectedRoute({ children }: Readonly<{ children: React.ReactNode }>) {
   const { isLoading, isAuthenticated, login, logout, loggedOut, isLoggingOut, isLoggingIn, error } = useAuth()
@@ -32,33 +33,33 @@ export function ProtectedRoute({ children }: Readonly<{ children: React.ReactNod
   }, [isLoading, isAuthenticated, loggedOut, isLoggingIn, error, sdkError, login])
 
   if (isLoading && !loggedOut) {
-    // Auth state not yet resolved — show full-page loader
+    // Auth state not yet resolved — show professional login page
     return (
-      <div className="auth-loading">
-        <div className="auth-loading__spinner" />
-        <span>Authenticating…</span>
-      </div>
+      <LoginPage
+        isLoading={isLoading}
+        isAuthenticated={isAuthenticated}
+        loggedOut={loggedOut}
+        isLoggingOut={isLoggingOut}
+        isLoggingIn={isLoggingIn}
+        error={error}
+        onLogin={login}
+        onLogout={logout}
+      />
     )
   }
 
   if (loggedOut || isLoggingIn || !isAuthenticated) {
     return (
-      <div className="auth-loading">
-        <span>{isLoggingOut ? 'Signing out…' : isLoggingIn ? 'Redirecting to sign in…' : 'You are signed out.'}</span>
-        {(error || sdkError) && (
-          <p role="alert">{error || 'Authentication failed. Try Sign in again.'}</p>
-        )}
-        <button type="button" disabled={isLoggingOut || isLoggingIn}
-          onClick={() => { void login().catch(() => { /* Shared error UI. */ }) }}>
-          Sign in
-        </button>
-        {loggedOut && (
-          <button type="button" disabled={isLoggingOut || isLoggingIn}
-            onClick={() => { void logout().catch(() => { /* Shared error UI. */ }) }}>
-            Retry sign out
-          </button>
-        )}
-      </div>
+      <LoginPage
+        isLoading={isLoading}
+        isAuthenticated={isAuthenticated}
+        loggedOut={loggedOut}
+        isLoggingOut={isLoggingOut}
+        isLoggingIn={isLoggingIn}
+        error={error}
+        onLogin={login}
+        onLogout={logout}
+      />
     )
   }
 

@@ -350,8 +350,206 @@ p { color: var(--text-secondary); }
 .topbar__dropdown-item--danger:hover { background: var(--color-danger-light); color: var(--color-danger); }
 
 /* ============================================================
-   Auth loading screen
+   Professional Login Page
    ============================================================ */
+.login-page {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: var(--bg-base);
+  overflow: hidden;
+}
+
+.login-page__gradient {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at top right, rgba(62, 99, 221, 0.15) 0%, transparent 50%),
+              radial-gradient(circle at bottom left, rgba(18, 181, 166, 0.1) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+.login-card {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 420px;
+  margin: 0 auto;
+  padding: var(--space-6);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+}
+
+.login-card__header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
+  text-align: center;
+}
+
+.login-card__logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+}
+
+.login-card__title {
+  font-size: var(--font-size-2xl);
+  font-family: var(--font-family-display);
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.login-card__subtitle {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin: 0;
+  font-weight: 400;
+}
+
+.login-card__content {
+  margin-bottom: var(--space-6);
+}
+
+.login-card__message {
+  font-size: var(--font-size-base);
+  color: var(--text-secondary);
+  text-align: center;
+  margin: 0 0 var(--space-4) 0;
+  line-height: 1.5;
+}
+
+.login-card__loader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-6) 0;
+}
+
+.login-card__spinner {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  border: 3px solid var(--border-default);
+  border-top-color: var(--color-primary);
+  border-right-color: var(--color-accent);
+  animation: spin 1s linear infinite;
+}
+
+.login-card__loader > p {
+  font-size: var(--font-size-base);
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.login-card__alert {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: 8px;
+  border: 1px solid;
+  background-color: rgba(229, 72, 77, 0.1);
+  border-color: rgba(229, 72, 77, 0.3);
+}
+
+.login-card__alert--error {
+  color: var(--color-danger);
+}
+
+.login-card__alert-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.login-card__alert-title {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  margin: 0 0 var(--space-1) 0;
+  color: inherit;
+}
+
+.login-card__alert-message {
+  font-size: var(--font-size-sm);
+  margin: 0;
+  color: inherit;
+  opacity: 0.9;
+}
+
+.login-card__footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.login-card__btn {
+  width: 100%;
+  justify-content: center;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  transition: all 200ms ease;
+}
+
+.login-card__btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(62, 99, 221, 0.3);
+}
+
+.login-card__btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.login-card__btn-secondary {
+  width: 100%;
+  justify-content: center;
+  font-weight: 500;
+}
+
+.login-card__footer-text {
+  text-align: center;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.login-card__link {
+  color: var(--color-primary-text);
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 150ms ease;
+}
+
+.login-card__link:hover {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+  .login-card {
+    margin: var(--space-4);
+    max-width: none;
+  }
+  
+  .login-card__title {
+    font-size: var(--font-size-xl);
+  }
+}
+
+/* Auth loading screen (kept for backwards compatibility) */
 .auth-loading {
   min-height: 100vh;
   display: flex;
